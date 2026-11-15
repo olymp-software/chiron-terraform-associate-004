@@ -1,0 +1,222 @@
+version: 1
+type: quiz
+theory_blocks:
+  - kind: markdown
+    data:
+      content: |
+        # Explain how Terraform manages multi-cloud, hybrid cloud, and service-agnostic workflows
+        This quiz covers how one Terraform workflow works across clouds, on-premises systems and
+        other services. Recall: providers are plugins that wrap a platform's API, one configuration
+        can use many providers and handle cross-cloud dependencies, the write/plan/apply workflow stays
+        the same for every provider, and resources themselves remain provider-specific.
+
+        Docs:
+        - [Use cases: multi-cloud deployment](https://developer.hashicorp.com/terraform/intro/use-cases#multi-cloud-deployment)
+        - [Providers](https://developer.hashicorp.com/terraform/language/providers)
+data:
+  questions:
+    - kind: choice
+      prompt: |
+        Why is multi-cloud deployment often hard without a tool like Terraform?
+      data:
+        multiple: false
+        options:
+          - text: Clouds cannot communicate with each other over the network.
+            feedback: Clouds can be connected; the problem is tooling, not connectivity.
+          - text: Each provider has its own interfaces, tools and workflows, which adds complexity.
+            correct: true
+          - text: Cloud providers forbid using more than one cloud.
+            feedback: No such restriction exists.
+      explanation: |
+        Spreading infrastructure across multiple clouds increases fault tolerance, but each provider
+        has its own interfaces and workflows. Terraform lets you use the same workflow to manage
+        multiple providers and handle cross-cloud dependencies.
+
+    - kind: choice
+      prompt: |
+        What makes Terraform's workflow **service-agnostic**?
+      data:
+        multiple: false
+        options:
+          - text: Providers translate the same configuration language and write/plan/apply workflow into each platform's API calls.
+            correct: true
+          - text: Terraform ships every provider inside the Terraform binary.
+            feedback: Providers are separate plugins downloaded by `terraform init`.
+          - text: The same `resource` block works unchanged in every cloud.
+            feedback: Resource types are provider-specific, such as `aws_instance` or `azurerm_linux_virtual_machine`.
+          - text: Terraform converts all clouds into a single virtual cloud.
+            feedback: Terraform manages each platform through its own provider.
+      explanation: |
+        Providers enable Terraform to work with virtually any platform or service with an accessible
+        API. The workflow and language stay the same, while each provider exposes its own resource types.
+
+    - kind: choice
+      prompt: |
+        True or false: A single Terraform configuration can manage resources in several cloud
+        providers at once, and one apply can create them in dependency order.
+      data:
+        multiple: false
+        options:
+          - text: "True"
+            correct: true
+          - text: "False"
+            feedback: A configuration can declare multiple providers, and references between them create dependencies.
+      explanation: |
+        A configuration can use many providers. Terraform builds one dependency graph for all resources,
+        so it handles cross-cloud dependencies within a single workflow.
+
+    - kind: choice
+      prompt: |
+        What does this configuration do?
+
+        ```hcl
+        resource "aws_eip" "web" {
+          domain = "vpc"
+        }
+
+        resource "cloudflare_dns_record" "web" {
+          zone_id = var.zone_id
+          name    = "web"
+          type    = "A"
+          content = aws_eip.web.public_ip
+          ttl     = 300
+        }
+        ```
+      data:
+        multiple: false
+        options:
+          - text: It fails, because one configuration cannot mix providers.
+            feedback: Mixing providers in one configuration is a core Terraform feature.
+          - text: It creates the DNS record first and then the Elastic IP.
+            feedback: The record references the IP, so the IP must exist first.
+          - text: It creates both resources in parallel because they belong to different providers.
+            feedback: The reference creates a dependency, so they are not independent.
+          - text: It creates an AWS Elastic IP, then a Cloudflare DNS record pointing to it, because the reference creates a dependency.
+            correct: true
+      explanation: |
+        The expression `aws_eip.web.public_ip` creates an implicit dependency, so Terraform creates the
+        AWS resource first and then the Cloudflare record, even though they use different providers.
+
+    - kind: choice
+      prompt: |
+        Which are true about Terraform providers? Select all that apply.
+      data:
+        multiple: true
+        options:
+          - text: They are plugins that let Terraform interact with a platform or service through its API
+            correct: true
+          - text: They are installed by `terraform init`
+            correct: true
+          - text: HashiCorp and the community publish them in the Terraform Registry, and you can write your own
+            correct: true
+          - text: Only HashiCorp may write providers
+            feedback: The community and vendors write many providers, and you can write your own.
+      explanation: |
+        Providers are plugins that wrap platform APIs. HashiCorp and the community have written
+        thousands of them, published in the Terraform Registry; `terraform init` downloads the
+        providers a configuration needs.
+
+    - kind: choice
+      prompt: |
+        You need to manage AWS resources in two regions from one configuration. What does this
+        configuration use?
+
+        ```hcl
+        provider "aws" {
+          region = "us-east-1"
+        }
+
+        provider "aws" {
+          alias  = "west"
+          region = "us-west-2"
+        }
+
+        resource "aws_s3_bucket" "replica" {
+          provider = aws.west
+          bucket   = "example-replica"
+        }
+        ```
+      data:
+        multiple: false
+        options:
+          - text: Two workspaces, one per region
+            feedback: Workspaces separate state; this uses two provider configurations.
+          - text: Two modules, one per region
+            feedback: There are no `module` blocks here.
+          - text: An additional provider configuration selected with `alias`; the bucket is created in `us-west-2`
+            correct: true
+          - text: A duplicated provider block, which is an error
+            feedback: Multiple configurations of one provider are allowed when extra ones have an `alias`.
+      explanation: |
+        You can define multiple configurations for the same provider by giving the extra ones an
+        `alias`. A resource selects a non-default configuration with `provider = <name>.<alias>`.
+
+    - kind: choice
+      prompt: |
+        Which workloads can Terraform manage through providers? Select all that apply.
+      data:
+        multiple: true
+        options:
+          - text: Public cloud resources such as AWS, Azure and Google Cloud
+            correct: true
+          - text: On-premises or private-cloud infrastructure that exposes an API, such as VMware vSphere
+            correct: true
+          - text: SaaS and platform services such as GitHub repositories, DNS records or Kubernetes objects
+            correct: true
+          - text: Systems that offer no API at all
+            feedback: Providers need an accessible API to manage a platform.
+      explanation: |
+        Terraform works with virtually any platform or service with an accessible API, so the same
+        workflow covers public clouds, on-premises systems (hybrid cloud) and SaaS services.
+
+    - kind: choice
+      prompt: |
+        An organization runs part of its infrastructure on-premises and part in a public cloud.
+        How does Terraform support this **hybrid cloud** setup?
+      data:
+        multiple: false
+        options:
+          - text: It requires a separate Terraform installation and language for on-premises systems.
+            feedback: The same Terraform binary and HCL work for both.
+          - text: It only supports on-premises systems through HCP Terraform agents and cannot manage them from the CLI.
+            feedback: The CLI can manage any platform with a provider and network access to its API.
+          - text: It uses providers for both the on-premises platform and the cloud, so both are managed with one language and workflow.
+            correct: true
+      explanation: |
+        Terraform manages both cloud and on-prem resources through providers, so a hybrid environment
+        uses the same configuration language, plan/apply workflow and state tracking.
+
+    - kind: choice
+      prompt: |
+        True or false: Terraform lets you write one `resource` block and deploy it unchanged to AWS,
+        Azure or Google Cloud by switching a single setting.
+      data:
+        multiple: false
+        options:
+          - text: "False"
+            correct: true
+          - text: "True"
+            feedback: Resource types belong to a provider, so each cloud needs its own resource definitions.
+      explanation: |
+        Terraform gives you one workflow and language, not a cloud abstraction layer. Each provider
+        defines its own resource types and arguments, for example `aws_instance` versus
+        `google_compute_instance`.
+
+    - kind: choice
+      prompt: |
+        Which block declares the providers a module needs, including their source addresses and
+        version constraints?
+      data:
+        multiple: false
+        options:
+          - text: "`required_providers` inside the `terraform` block"
+            correct: true
+          - text: "`backend` inside the `terraform` block"
+            feedback: A backend configures where state is stored.
+          - text: "`provider` block with a `version` argument only"
+            feedback: Version constraints belong in `required_providers`; `version` in a provider block is deprecated.
+          - text: "`module` block"
+            feedback: A module block calls a child module.
+      explanation: |
+        Each module declares its providers in a `required_providers` block inside the `terraform`
+        block, giving each a local name, a `source` address and a `version` constraint.

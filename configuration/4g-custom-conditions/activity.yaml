@@ -1,0 +1,189 @@
+version: 1
+type: quiz
+theory_blocks:
+  - kind: markdown
+    data:
+      content: |
+        # Validate configuration using custom conditions
+        This quiz covers the four ways to validate configuration: `validation` blocks in variables,
+        `precondition` and `postcondition` blocks in `lifecycle` (and `precondition` in outputs), and `check`
+        blocks with `assert` and scoped data sources. Recall when each one is evaluated and whether a failure
+        stops the run (error) or only reports a warning.
+
+        Docs:
+        - [Validate your configuration](https://developer.hashicorp.com/terraform/language/validate)
+        - [Custom conditions tutorial](https://developer.hashicorp.com/terraform/tutorials/configuration-language/custom-conditions)
+        - [Checks tutorial](https://developer.hashicorp.com/terraform/tutorials/configuration-language/checks)
+data:
+  questions:
+    - kind: choice
+      prompt: |
+        What happens when this check's assertion fails during `terraform apply`?
+
+        ```hcl
+        check "health" {
+          data "http" "site" {
+            url = "https://${aws_lb.web.dns_name}/health"
+          }
+
+          assert {
+            condition     = data.http.site.status_code == 200
+            error_message = "Health endpoint is not returning 200."
+          }
+        }
+        ```
+      data:
+        multiple: false
+        options:
+          - text: Terraform stops the apply and rolls back the changes.
+            feedback: Terraform never rolls back, and checks don't stop the run.
+          - text: Terraform reports a warning and the apply continues.
+            correct: true
+          - text: Terraform marks `aws_lb.web` as tainted.
+            feedback: Checks don't affect resource state.
+          - text: Terraform retries the check until it succeeds.
+            feedback: Checks are evaluated once per run.
+      explanation: |
+        `check` blocks run as the last step of plan and apply. A failed assertion produces a warning and
+        doesn't block the operation.
+    - kind: choice
+      prompt: Which custom condition failures produce an error that stops the operation? Select all that apply.
+      data:
+        multiple: true
+        options:
+          - text: A failed variable `validation` condition.
+            correct: true
+          - text: A failed resource `precondition`.
+            correct: true
+          - text: A failed resource `postcondition`.
+            correct: true
+          - text: A failed `assert` in a `check` block.
+            feedback: Check assertions only produce warnings.
+      explanation: |
+        Variable validations, preconditions and postconditions produce errors and stop the operation. Check
+        blocks produce warnings.
+    - kind: choice
+      prompt: |
+        Where is this `precondition` placed, and when is it evaluated?
+
+        ```hcl
+        resource "aws_instance" "web" {
+          ami           = data.aws_ami.app.id
+          instance_type = "t3.micro"
+
+          lifecycle {
+            precondition {
+              condition     = data.aws_ami.app.architecture == "x86_64"
+              error_message = "The AMI must be for x86_64."
+            }
+          }
+        }
+        ```
+      data:
+        multiple: false
+        options:
+          - text: In the `lifecycle` block; evaluated before Terraform creates or changes the resource.
+            correct: true
+          - text: In the `lifecycle` block; evaluated only after the resource is created.
+            feedback: That describes a postcondition.
+          - text: In the provider block; evaluated during `terraform init`.
+            feedback: Preconditions are in the resource's `lifecycle` block, evaluated during plan/apply.
+      explanation: |
+        Preconditions live in `lifecycle` and are checked before the object is evaluated, so a wrong AMI is
+        caught before the instance is created.
+    - kind: choice
+      prompt: Which object can a `postcondition` use to refer to the resource's own attributes?
+      data:
+        multiple: false
+        options:
+          - text: "`this`"
+            feedback: Terraform uses `self`.
+          - text: "`each.value`"
+            feedback: That's the current `for_each` element.
+          - text: "`self`"
+            correct: true
+          - text: "`resource`"
+            feedback: There is no `resource` named value.
+      explanation: |
+        In a postcondition, `self` refers to the resource instance, e.g. `self.private_dns != ""`. Postconditions
+        run after the resource is planned/applied or the data source is read.
+    - kind: choice
+      prompt: |
+        True or false: if a resource `postcondition` fails after apply, Terraform destroys the newly created
+        resource.
+      data:
+        multiple: false
+        options:
+          - text: "True"
+            feedback: Terraform never undoes completed actions.
+          - text: "False"
+            correct: true
+      explanation: |
+        A failed postcondition halts processing and prevents downstream actions, but the resource that was
+        already created stays in place and in state.
+    - kind: choice
+      prompt: |
+        When does Terraform evaluate `validation` blocks of input variables?
+      data:
+        multiple: false
+        options:
+          - text: During `terraform init`.
+            feedback: init doesn't evaluate variable values.
+          - text: Only during `terraform apply`.
+            feedback: Validation runs earlier, during plan.
+          - text: After all resources are created.
+            feedback: That's when checks run.
+          - text: At the beginning of planning, before Terraform creates the plan for resources.
+            correct: true
+      explanation: |
+        Terraform evaluates variable validations immediately, before generating a plan, so invalid input fails
+        fast with the configured `error_message`.
+    - kind: choice
+      prompt: |
+        Which statements about `check` blocks are true? Select two.
+      data:
+        multiple: true
+        options:
+          - text: They can contain a scoped `data` block that is used only within the check.
+            correct: true
+          - text: In HCP Terraform they can be run continuously as part of health assessments (continuous validation).
+            correct: true
+          - text: They must reference a resource in the same file.
+            feedback: Checks can validate any value, including external endpoints.
+          - text: They run before variable validation.
+            feedback: Checks run as the last step of plan or apply.
+      explanation: |
+        Check blocks can declare a scoped data source; if it fails, Terraform reports a warning instead of an
+        error. HCP Terraform health assessments also run checks.
+    - kind: choice
+      prompt: |
+        You want to make sure a module output always contains a non-empty value before Terraform exposes or
+        stores it. What should you add?
+      data:
+        multiple: false
+        options:
+          - text: A `validation` block in the output.
+            feedback: "`validation` is for variables."
+          - text: A `precondition` block in the output.
+            correct: true
+          - text: A `postcondition` block in the output.
+            feedback: Outputs support only `precondition`.
+          - text: "`sensitive = true` on the output."
+            feedback: That only redacts the value.
+      explanation: |
+        Outputs support `precondition` blocks, which validate the value before Terraform exposes it or stores it
+        in state.
+    - kind: choice
+      prompt: |
+        Which is the best tool to reject an `instance_type` input that is not in an allowed list?
+      data:
+        multiple: false
+        options:
+          - text: A `validation` block with `contains(["t3.micro", "t3.small"], var.instance_type)`.
+            correct: true
+          - text: A `check` block asserting the value.
+            feedback: Checks only warn, so the invalid value would still be used.
+          - text: A `postcondition` on the instance.
+            feedback: That would only fail after the instance is planned/applied; validate inputs early.
+      explanation: |
+        Variable validation catches invalid input values before planning and shows a clear `error_message`.

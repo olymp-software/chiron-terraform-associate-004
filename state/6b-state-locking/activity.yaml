@@ -1,0 +1,243 @@
+version: 1
+type: quiz
+theory_blocks:
+  - kind: markdown
+    data:
+      content: |
+        # Describe state locking
+
+        This quiz covers state locking: why it exists, when Terraform takes the lock, what happens when the lock
+        is held, and the `-lock=false`, `-lock-timeout` and `terraform force-unlock` options. It also checks
+        locking in the S3 backend: the S3-native `use_lockfile` versus the deprecated DynamoDB table.
+
+        **Docs**
+
+        - [State locking](https://developer.hashicorp.com/terraform/language/state/locking)
+        - [Backends: state storage and locking](https://developer.hashicorp.com/terraform/language/state/backends)
+        - [terraform force-unlock](https://developer.hashicorp.com/terraform/cli/commands/force-unlock)
+        - [Backend type: s3](https://developer.hashicorp.com/terraform/language/backend/s3)
+data:
+  questions:
+    - kind: choice
+      prompt: |
+        What problem does state locking solve?
+      data:
+        multiple: false
+        options:
+          - text: It encrypts the state file at rest
+            feedback: Encryption is a separate backend feature (for example `encrypt` in S3).
+          - text: It prevents concurrent operations from writing the same state
+            correct: true
+          - text: It prevents anyone from editing the Terraform configuration files
+            feedback: Locking applies to state, not to configuration files.
+          - text: It keeps the provider versions pinned
+            feedback: Provider versions are pinned by the dependency lock file `.terraform.lock.hcl`.
+      explanation: |
+        If the backend supports it, Terraform locks state for all operations that could write state, so others
+        cannot acquire the lock and corrupt the state.
+
+    - kind: choice
+      prompt: |
+        True or false: before `terraform apply` you must run a separate command to acquire the state lock.
+      data:
+        multiple: false
+        options:
+          - text: "True"
+            feedback: Terraform takes the lock automatically.
+          - text: "False"
+            correct: true
+      explanation: |
+        State locking happens automatically on all operations that could write state. Terraform prints a status
+        message only if acquiring the lock takes longer than expected.
+
+    - kind: choice
+      prompt: |
+        A colleague is running `terraform apply` on the same workspace. You run `terraform plan` without any
+        lock options. What happens?
+      data:
+        multiple: false
+        options:
+          - text: Terraform waits until the colleague's apply finishes, however long it takes
+            feedback: The default `-lock-timeout` is `0s`, so Terraform does not wait.
+          - text: Terraform ignores the lock because `plan` is read-only
+            feedback: |
+              `plan` takes the state lock too (it supports `-lock` and `-lock-timeout`).
+          - text: Terraform fails with an error saying the state is locked
+            correct: true
+          - text: Terraform breaks the colleague's lock and continues
+            feedback: Terraform never breaks a lock automatically; that requires `force-unlock`.
+      explanation: |
+        If state locking fails, Terraform does not continue. With the default lock timeout of `0s`, it fails
+        immediately when the lock is held by someone else.
+
+    - kind: choice
+      prompt: |
+        What does this command do?
+
+        ```shell
+        terraform apply -lock-timeout=5m
+        ```
+      data:
+        multiple: false
+        options:
+          - text: Holds the state lock for at most 5 minutes, then releases it even if apply is still running
+            feedback: The option controls waiting for the lock, not how long it is held.
+          - text: Aborts the apply if it takes more than 5 minutes
+            feedback: There is no such overall timeout option.
+          - text: Automatically force-unlocks any lock older than 5 minutes
+            feedback: Terraform never force-unlocks automatically.
+          - text: Retries acquiring the state lock for up to 5 minutes before returning an error
+            correct: true
+      explanation: |
+        `-lock-timeout=DURATION` makes Terraform retry acquiring the lock for that period before returning an
+        error. The default is `0s`.
+
+    - kind: choice
+      prompt: |
+        Which statements about `-lock=false` are true? Select all that apply.
+      data:
+        multiple: true
+        options:
+          - text: It disables state locking for the operation
+            correct: true
+          - text: It is dangerous if others may run commands against the same workspace concurrently
+            correct: true
+          - text: It is the recommended setting for CI pipelines
+            feedback: HashiCorp advises against disabling locking.
+          - text: It removes an existing lock held by another process
+            feedback: Removing a lock is what `terraform force-unlock` does.
+      explanation: |
+        Most commands accept `-lock=false` to skip the state lock. The docs advise against it, because concurrent
+        runs on the same workspace can then corrupt state.
+
+    - kind: choice
+      prompt: |
+        An apply crashed and the state stayed locked. Which command removes the lock?
+      data:
+        multiple: false
+        options:
+          - text: "`terraform force-unlock LOCK_ID`"
+            correct: true
+          - text: "`terraform state rm LOCK_ID`"
+            feedback: "`state rm` removes resource instances from state, not locks."
+          - text: "`terraform apply -lock=false`"
+            feedback: This only skips locking for one run; the stale lock remains.
+          - text: "`terraform unlock -all`"
+            feedback: There is no such command.
+      explanation: |
+        `terraform force-unlock [options] LOCK_ID` manually removes the lock. The lock ID is printed by Terraform
+        when locking or unlocking fails; it ensures you release the right lock.
+
+    - kind: choice
+      prompt: |
+        Which statements about `terraform force-unlock` are true? Select all that apply.
+      data:
+        multiple: true
+        options:
+          - text: It does not modify your infrastructure
+            correct: true
+          - text: It should be used only to release your own lock when automatic unlocking failed
+            correct: true
+          - text: It can unlock a local state file locked by another running process
+            feedback: The command cannot unlock local state from another process.
+          - text: It requires the lock ID as an argument
+            correct: true
+          - text: It is safe to run while a colleague's apply is in progress
+            feedback: Unlocking someone else's active lock can lead to multiple writers.
+      explanation: |
+        `force-unlock` only removes the lock on the state; it does not touch infrastructure. Be very careful with
+        it: unlocking while someone else holds the lock can cause multiple writers. The `-force` flag skips the
+        confirmation prompt.
+
+    - kind: choice
+      prompt: |
+        True or false: every Terraform backend supports state locking.
+      data:
+        multiple: false
+        options:
+          - text: "True"
+            feedback: Locking is optional; each backend's documentation says whether it supports locking.
+          - text: "False"
+            correct: true
+      explanation: |
+        Backends are responsible for storing state and providing an API for locking, but not all backends support
+        locking. For example, the local backend locks via system APIs, and Consul uses its locking APIs.
+
+    - kind: choice
+      prompt: |
+        For Terraform 1.12 with the `s3` backend, what is the recommended way to enable state locking?
+      data:
+        multiple: false
+        options:
+          - text: Set `dynamodb_table` to a DynamoDB table with a `LockID` partition key
+            feedback: DynamoDB-based locking still works but is deprecated and will be removed in a future minor version.
+          - text: Nothing; S3 locks state automatically without any setting
+            feedback: S3 locking is opt-in; `use_lockfile` defaults to `false`.
+          - text: Set `use_lockfile = true` to use S3-native lock files
+            correct: true
+          - text: Run every command with `-lock-timeout`
+            feedback: "`-lock-timeout` only controls waiting; it does not enable locking."
+      explanation: |
+        ```hcl
+        terraform {
+          backend "s3" {
+            bucket       = "my-state"
+            key          = "app/terraform.tfstate"
+            region       = "eu-west-1"
+            use_lockfile = true
+          }
+        }
+        ```
+
+        `use_lockfile` enables S3-native locking (default `false`). DynamoDB-based locking is deprecated.
+
+    - kind: choice
+      prompt: |
+        You are migrating an S3 backend from DynamoDB locking to S3-native locking. Is this configuration valid?
+
+        ```hcl
+        backend "s3" {
+          bucket         = "my-state"
+          key            = "app/terraform.tfstate"
+          region         = "eu-west-1"
+          use_lockfile   = true
+          dynamodb_table = "terraform-locks"
+        }
+        ```
+      data:
+        multiple: false
+        options:
+          - text: No, `use_lockfile` and `dynamodb_table` are mutually exclusive
+            feedback: The docs explicitly allow both at the same time to ease migration.
+          - text: Yes, both arguments can be configured simultaneously during migration
+            correct: true
+          - text: Yes, but Terraform ignores `use_lockfile` when `dynamodb_table` is set
+            feedback: |
+              The docs do not say `use_lockfile` is ignored; they allow both arguments together to support
+              migration from DynamoDB-based locking.
+      explanation: |
+        To support migration from older versions of Terraform that only support DynamoDB-based locking, the S3
+        and DynamoDB arguments can be configured simultaneously. DynamoDB-based locking is deprecated and will be
+        removed in a future minor version.
+
+    - kind: choice
+      prompt: |
+        Which of these commands never take a state lock because they don't read or write state?
+        Select two.
+      data:
+        multiple: true
+        options:
+          - text: "`terraform fmt`"
+            correct: true
+          - text: "`terraform apply`"
+            feedback: Apply writes state, so it locks.
+          - text: "`terraform state mv`"
+            feedback: "`state mv` writes state and accepts `-lock` / `-lock-timeout`."
+          - text: "`terraform validate`"
+            correct: true
+          - text: "`terraform destroy`"
+            feedback: Destroy writes state, so it locks.
+      explanation: |
+        `fmt` and `validate` work only on configuration files and have no `-lock` options; `validate` does not
+        access remote state. Commands that work with state (such as `plan`, `apply`, `destroy`, `import` and
+        `state mv`/`rm`) accept `-lock` and `-lock-timeout` and lock state when the backend supports it.

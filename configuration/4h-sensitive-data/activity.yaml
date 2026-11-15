@@ -1,0 +1,176 @@
+version: 1
+type: quiz
+theory_blocks:
+  - kind: markdown
+    data:
+      content: |
+        # Manage sensitive data and secrets with Vault
+        This quiz covers how Terraform handles secrets: `sensitive` variables and outputs (redacted in output
+        but still stored in state), securing state, ephemeral values and ephemeral resources (1.10+), write-only
+        arguments (1.11+), and using the Vault provider to obtain short-lived dynamic credentials.
+
+        Docs:
+        - [Manage sensitive data](https://developer.hashicorp.com/terraform/language/manage-sensitive-data)
+        - [Protect sensitive input variables](https://developer.hashicorp.com/terraform/tutorials/configuration-language/sensitive-variables)
+        - [Inject secrets into Terraform using the Vault provider](https://developer.hashicorp.com/terraform/tutorials/secrets/secrets-vault)
+data:
+  questions:
+    - kind: choice
+      prompt: |
+        A variable is declared with `sensitive = true`. Where can its value still be found in plain text?
+        Select all that apply.
+      data:
+        multiple: true
+        options:
+          - text: In the state file.
+            correct: true
+          - text: In a saved plan file.
+            correct: true
+          - text: In the `terraform plan` console output.
+            feedback: Plan output shows `(sensitive value)`.
+          - text: "In `terraform output -json`, if an output exposes it."
+            correct: true
+      explanation: |
+        `sensitive` only redacts values in CLI output. Terraform still stores them in state and plan files, and
+        `terraform output -json`/`-raw` show them in plain text.
+    - kind: choice
+      prompt: |
+        Which practices help protect secrets stored in Terraform state? Select all that apply.
+      data:
+        multiple: true
+        options:
+          - text: Use a remote backend that encrypts state at rest, such as HCP Terraform or S3 with encryption.
+            correct: true
+          - text: Restrict who can read state with access controls and audit access.
+            correct: true
+          - text: Commit `terraform.tfstate` to Git so changes are reviewed.
+            feedback: State may contain secrets and must not be committed.
+          - text: Mark everything `sensitive = true`, which encrypts the state file.
+            feedback: "`sensitive` doesn't encrypt state."
+      explanation: |
+        Treat state itself as sensitive: store it remotely, encrypt it at rest, limit access and audit reads.
+    - kind: choice
+      prompt: |
+        Which statement about ephemeral values (Terraform 1.10+) is correct?
+      data:
+        multiple: false
+        options:
+          - text: They are encrypted in the state file with a provider key.
+            feedback: Ephemeral values are not written to state at all.
+          - text: They are available during the run but omitted from plan and state files.
+            correct: true
+          - text: They are stored only in the plan file.
+            feedback: They are omitted from plan files too.
+          - text: They can be assigned to any argument of a managed resource.
+            feedback: Only ephemeral contexts (write-only arguments, providers, provisioners, etc.) accept them.
+      explanation: |
+        Ephemeral values exist only at runtime; Terraform omits them from state and plan files entirely.
+    - kind: choice
+      prompt: |
+        What is an `ephemeral` block (ephemeral resource)?
+
+        ```hcl
+        ephemeral "aws_secretsmanager_secret_version" "db" {
+          secret_id = aws_secretsmanager_secret.db.id
+        }
+        ```
+      data:
+        multiple: false
+        options:
+          - text: A managed resource that Terraform destroys at the end of every run.
+            feedback: Ephemeral resources are not managed objects stored in state.
+          - text: A data source that caches its result in state for the next run.
+            feedback: Ephemeral resource results are never persisted.
+          - text: A provider-defined block that fetches or creates a temporary value for this run only, without storing it in state or plan.
+            correct: true
+      explanation: |
+        Ephemeral resources (Terraform 1.10+) are defined by providers and give values that are never persisted.
+        Their values can be used only in ephemeral contexts, such as write-only arguments or provider blocks.
+    - kind: choice
+      prompt: |
+        What is the role of `password_wo_version` here (Terraform 1.11+)?
+
+        ```hcl
+        resource "aws_db_instance" "db" {
+          # ...
+          password_wo         = ephemeral.random_password.db.result
+          password_wo_version = 1
+        }
+        ```
+      data:
+        multiple: false
+        options:
+          - text: It stores a hash of the password in state.
+            feedback: Write-only values are not stored in any form.
+          - text: Incrementing it tells Terraform to send the new write-only value to the provider.
+            correct: true
+          - text: It selects the provider schema version.
+            feedback: It's an ordinary argument for triggering updates.
+          - text: It sets how many old passwords Terraform keeps.
+            feedback: Terraform keeps none of them.
+      explanation: |
+        Write-only arguments (usually ending in `_wo`) accept ephemeral values and are never stored in plan or
+        state, so Terraform can't detect changes. Change the paired `_wo_version` to trigger an update.
+    - kind: choice
+      prompt: |
+        True or false: a root module `output` can be marked `ephemeral = true` to show a secret without storing
+        it in state.
+      data:
+        multiple: false
+        options:
+          - text: "True"
+            feedback: The `ephemeral` argument isn't allowed on root module outputs.
+          - text: "False"
+            correct: true
+      explanation: Only child module outputs can be ephemeral; they pass ephemeral values to the parent module.
+    - kind: choice
+      prompt: |
+        A configuration uses the Vault provider's `vault_aws_access_credentials` data source to configure the
+        AWS provider. What is the main benefit?
+      data:
+        multiple: false
+        options:
+          - text: Terraform no longer needs a state file.
+            feedback: State is still required.
+          - text: Each run uses short-lived, dynamically generated AWS credentials that Vault revokes when the lease expires.
+            correct: true
+          - text: The credentials are automatically excluded from the state file.
+            feedback: Values read via Vault data sources are written to state like any data source result.
+          - text: Vault encrypts the Terraform plan file.
+            feedback: Vault doesn't manage Terraform plan files.
+      explanation: |
+        The Vault AWS secrets engine creates dynamic IAM credentials with a TTL. Operators don't keep long-lived
+        keys, and stolen credentials expire quickly.
+    - kind: choice
+      prompt: |
+        Which are recommended ways to pass a secret value to Terraform without writing it in configuration
+        files? Select two.
+      data:
+        multiple: true
+        options:
+          - text: A `TF_VAR_` environment variable or a sensitive HCP Terraform workspace variable.
+            correct: true
+          - text: Read it from a secrets manager such as Vault at run time.
+            correct: true
+          - text: Put it as `default` of the variable in `variables.tf`.
+            feedback: It would be committed to version control.
+          - text: Put it in a `locals` block marked sensitive.
+            feedback: Locals live in configuration files; there is no `sensitive` argument for locals.
+      explanation: |
+        Keep secrets out of code: supply them through environment variables, secure workspace variables or a
+        secrets manager like Vault, and mark the variables `sensitive`.
+    - kind: choice
+      prompt: |
+        Why is a dynamic Vault secret with a short TTL problematic for a long `terraform apply`?
+      data:
+        multiple: false
+        options:
+          - text: Vault can't issue secrets during apply, only during plan.
+            feedback: Credentials are read on both plan and apply.
+          - text: Terraform caches the secret forever.
+            feedback: The issue is expiry, not caching.
+          - text: If the apply runs longer than the TTL, the credentials expire and the run fails.
+            correct: true
+      explanation: |
+        The TTL should cover the longest apply but no more; a longer TTL also widens the window in which stolen
+        credentials are valid.

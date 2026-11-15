@@ -1,0 +1,189 @@
+version: 1
+type: quiz
+theory_blocks:
+  - kind: markdown
+    data:
+      content: |
+        # Generate and review an execution plan for Terraform
+
+        This quiz covers `terraform plan`: planning modes (`-destroy`, `-refresh-only`), planning options (`-replace`, `-target`, `-var`, `-var-file`, `-refresh=false`) and other options such as `-out` and `-detailed-exitcode`.
+        Recall how to read plan symbols, how saved plans are inspected, and how Terraform builds and walks the resource dependency graph.
+
+        Docs:
+        - [terraform plan](https://developer.hashicorp.com/terraform/cli/commands/plan)
+        - [Resource graph](https://developer.hashicorp.com/terraform/internals/graph)
+        - [Create a Terraform plan tutorial](https://developer.hashicorp.com/terraform/tutorials/cli/plan)
+data:
+  questions:
+    - kind: choice
+      prompt: Which command saves an execution plan to a file so that exactly this plan can be applied later?
+      data:
+        options:
+          - text: "`terraform plan -save tfplan`"
+            feedback: There is no `-save` option.
+          - text: "`terraform plan > tfplan`"
+            feedback: This only captures human-readable text, which `apply` cannot use.
+          - text: "`terraform plan -out=tfplan`"
+            correct: true
+          - text: "`terraform plan -json=tfplan`"
+            feedback: "`-json` switches output to machine-readable JSON; it does not take a file name."
+      explanation: |
+        `-out=FILENAME` writes the plan to a file that `terraform apply tfplan` can execute later.
+    - kind: choice
+      prompt: |
+        True or false: a saved plan file can contain sensitive values in cleartext, even if they are hidden in the terminal output.
+      data:
+        options:
+          - text: "True"
+            correct: true
+          - text: "False"
+            feedback: The plan file contains the full configuration, planned values and variables, including sensitive ones.
+      explanation: |
+        The docs advise treating saved plan files as potentially sensitive artifacts, and the style guide says not to commit them to version control.
+    - kind: choice
+      prompt: |
+        A CI pipeline runs `terraform plan -detailed-exitcode`. The command exits with code `2`. What does that mean?
+      data:
+        options:
+          - text: The plan failed with an error
+            feedback: Errors return exit code 1.
+          - text: The plan succeeded and there are no changes
+            feedback: No changes returns exit code 0.
+          - text: The plan succeeded and there are changes to apply
+            correct: true
+      explanation: |
+        With `-detailed-exitcode`: `0` = success with no changes, `1` = error, `2` = success with a non-empty diff.
+    - kind: choice
+      prompt: |
+        Someone changed a tag on a VM in the cloud console. You want to update the Terraform state and outputs to match, **without** changing any infrastructure. Which planning mode should you use?
+      data:
+        options:
+          - text: "`terraform plan -refresh=false`"
+            feedback: This skips syncing with remote objects, which is the opposite of what you need.
+          - text: "`terraform plan -refresh-only`"
+            correct: true
+          - text: "`terraform plan -destroy`"
+            feedback: Destroy mode plans to remove all managed objects.
+          - text: "`terraform plan -replace=...`"
+            feedback: Replace forces recreation of a resource.
+      explanation: |
+        Refresh-only mode creates a plan that only updates the state and root module outputs to match changes made outside Terraform. Apply it with `terraform apply -refresh-only`.
+    - kind: choice
+      prompt: |
+        What does this command do?
+
+        ```shell
+        terraform plan -replace="aws_instance.web"
+        ```
+      data:
+        options:
+          - text: Removes `aws_instance.web` from state without destroying it
+            feedback: That is `terraform state rm` or a `removed` block.
+          - text: Limits the plan to `aws_instance.web` only
+            feedback: That is `-target`.
+          - text: Plans to destroy `aws_instance.web` and create a new one, even though its configuration did not change
+            correct: true
+      explanation: |
+        `-replace=ADDRESS` instructs Terraform to plan a replacement of that resource instance. It is the recommended alternative to the deprecated `terraform taint`.
+    - kind: choice
+      prompt: Which statement about the `-target` option is true?
+      data:
+        options:
+          - text: It is the recommended way to apply changes in large configurations every day
+            feedback: The docs say not to use it for routine operations.
+          - text: It limits planning to the given resources and their dependencies and is meant for exceptional circumstances only
+            correct: true
+          - text: It cannot be combined with `terraform destroy`
+            feedback: "`terraform destroy -target=...` is valid."
+          - text: It also plans changes for all resources that depend on the target
+            feedback: It includes the objects the target depends on, not those that depend on it.
+      explanation: |
+        `-target` focuses Terraform on a subset of resources (plus what they depend on). Routine use can hide configuration drift, so it is only for exceptional cases such as recovering from mistakes.
+    - kind: choice
+      prompt: |
+        A plan shows this resource. What will happen to it?
+
+        ```text
+          # aws_instance.web must be replaced
+        -/+ resource "aws_instance" "web" {
+              ~ ami = "ami-0aaa" -> "ami-0bbb" # forces replacement
+              ...
+            }
+        ```
+      data:
+        options:
+          - text: It will be updated in place
+            feedback: In-place updates are shown with `~` only.
+          - text: It will be destroyed and then a new one will be created
+            correct: true
+          - text: It will only be removed from state
+            feedback: Nothing in this plan marks a state-only removal.
+          - text: It will be created first, then the old one destroyed
+            feedback: That order is shown as `+/-` (with `create_before_destroy`).
+      explanation: |
+        Plan symbols: `+` create, `-` destroy, `~` update in place, `-/+` destroy and then create a replacement. Changing `ami` forces replacement.
+    - kind: choice
+      prompt: |
+        True or false: running `terraform plan` (without `-out`) changes real infrastructure.
+      data:
+        options:
+          - text: "False"
+            correct: true
+          - text: "True"
+            feedback: A plan only proposes changes; it does not carry them out.
+      explanation: |
+        `terraform plan` lets you preview the actions Terraform would take. It does not carry out the proposed changes.
+    - kind: choice
+      prompt: How can you preview everything that `terraform destroy` would remove, without destroying anything?
+      data:
+        options:
+          - text: "`terraform show -destroy`"
+            feedback: "`show` has no `-destroy` option."
+          - text: "`terraform state list -destroy`"
+            feedback: This option does not exist.
+          - text: "`terraform plan -destroy`"
+            correct: true
+      explanation: |
+        `terraform plan -destroy` runs plan in destroy mode and shows the proposed destroy actions without executing them.
+    - kind: choice
+      prompt: How does Terraform decide the order in which resources are created? Select all that apply.
+      data:
+        multiple: true
+        options:
+          - text: References between resources, such as `aws_subnet.a.id` used in another resource
+            correct: true
+          - text: Explicit `depends_on` meta-arguments
+            correct: true
+          - text: The order of resource blocks in the `.tf` files
+            feedback: Block order in files does not determine execution order.
+          - text: Alphabetical order of resource names
+            feedback: Names have no effect on ordering.
+      explanation: |
+        Terraform builds a dependency graph from references and `depends_on` (plus provider configuration). Independent resources are processed in parallel.
+    - kind: choice
+      prompt: |
+        By default, how many resource operations does Terraform run concurrently while walking the graph, and how can this be changed?
+      data:
+        options:
+          - text: 1; use `-target`
+            feedback: Terraform walks the graph in parallel, and `-target` does not control concurrency.
+          - text: 10; use `-parallelism=n`
+            correct: true
+          - text: Unlimited; use `-lock-timeout`
+            feedback: "`-lock-timeout` is about waiting for the state lock."
+      explanation: |
+        A semaphore limits concurrent graph nodes to 10 by default; `-parallelism=n` on `plan`, `apply` and `destroy` changes this.
+    - kind: choice
+      prompt: Which command shows the contents of a saved plan file `tfplan` in human-readable form?
+      data:
+        options:
+          - text: "`terraform show tfplan`"
+            correct: true
+          - text: "`terraform output tfplan`"
+            feedback: "`output` shows root module outputs from state."
+          - text: "`terraform validate tfplan`"
+            feedback: "`validate` works on configuration, not plan files."
+          - text: "`terraform plan -in=tfplan`"
+            feedback: There is no `-in` option.
+      explanation: |
+        `terraform show tfplan` prints the saved plan; `terraform show -json tfplan` prints it as JSON, for example for policy checks.

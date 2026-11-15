@@ -1,0 +1,133 @@
+version: 1
+type: quiz
+theory_blocks:
+  - kind: markdown
+    data:
+      content: |
+        # Describe the Terraform workflow
+
+        This quiz covers the core Terraform workflow: **Write** configuration, **Plan** (preview changes) and **Apply** (provision them).
+        Recall how the workflow looks for an individual practitioner, for a team working with version control and pull requests, and in HCP Terraform with automatic speculative plans.
+
+        Docs:
+        - [The Core Terraform Workflow](https://developer.hashicorp.com/terraform/intro/core-workflow)
+        - [Create infrastructure tutorial](https://developer.hashicorp.com/terraform/tutorials/aws-get-started/aws-create)
+data:
+  questions:
+    - kind: choice
+      prompt: What are the three steps of the core Terraform workflow, in order?
+      data:
+        options:
+          - text: Init → Validate → Destroy
+            feedback: These are commands, not the three stages of the core workflow.
+          - text: Plan → Write → Apply
+            feedback: You cannot plan before you have written configuration.
+          - text: Write → Plan → Apply
+            correct: true
+          - text: Write → Apply → Plan
+            feedback: The plan is reviewed before changes are applied, not after.
+      explanation: |
+        The core workflow is **Write** (author infrastructure as code), **Plan** (preview changes before applying) and **Apply** (provision reproducible infrastructure).
+    - kind: choice
+      prompt: |
+        You have just written a new configuration in an empty directory. Which sequence of commands is the typical way to provision it?
+      data:
+        options:
+          - text: "`terraform plan` → `terraform init` → `terraform apply`"
+            feedback: "`plan` needs an initialized working directory (providers installed), so `init` must come first."
+          - text: "`terraform init` → `terraform validate` → `terraform plan` → `terraform apply`"
+            correct: true
+          - text: "`terraform apply` → `terraform init` → `terraform plan`"
+            feedback: Nothing can be applied before the working directory is initialized.
+          - text: "`terraform validate` → `terraform apply` → `terraform init`"
+            feedback: "`validate` also needs an initialized directory, and `init` is always the first step."
+      explanation: |
+        `terraform init` prepares the working directory (backend, modules, providers). Then you can validate the configuration, review the execution plan and apply it.
+    - kind: choice
+      prompt: |
+        True or false: in the individual practitioner workflow, it is common to run `terraform plan` repeatedly during the **Write** stage as a quick feedback loop.
+      data:
+        options:
+          - text: "True"
+            correct: true
+          - text: "False"
+            feedback: The docs describe repeatedly running plans while writing to flush out syntax errors and check the configuration.
+      explanation: |
+        While writing, practitioners iterate: edit code, run `terraform plan`, fix what is wrong, and repeat until the configuration looks right.
+    - kind: choice
+      prompt: In a team workflow that uses version control, where is the proposed plan typically reviewed before a change is merged?
+      data:
+        options:
+          - text: In the pull request, with the speculative plan output attached or posted by CI
+            correct: true
+          - text: Only in the state file after apply
+            feedback: Reviewing state after apply is too late; the goal is to review changes before they happen.
+          - text: On each team member's workstation after `terraform destroy`
+            feedback: Destroy is unrelated to reviewing proposed changes.
+      explanation: |
+        For teams, the pull request is the review point: reviewers check that the speculative plan matches the author's intent before merging.
+    - kind: choice
+      prompt: |
+        True or false: when a VCS-connected HCP Terraform workspace is used, a speculative plan runs automatically when a pull request is opened.
+      data:
+        options:
+          - text: "False"
+            feedback: HCP Terraform runs speculative plans for pull requests automatically and reports status back to the PR.
+          - text: "True"
+            correct: true
+      explanation: |
+        HCP Terraform automatically runs a speculative plan when a pull request is created and shows a status check in the PR with a link to the full plan.
+    - kind: choice
+      prompt: Why is reviewing the execution plan before applying valuable? Select all that apply.
+      data:
+        multiple: true
+        options:
+          - text: It shows resources that will be destroyed or replaced before anything happens
+            correct: true
+          - text: It confirms that the proposed changes match your intent
+            correct: true
+          - text: It guarantees that the apply will finish without errors
+            feedback: A plan cannot guarantee success; provider API errors can still occur during apply.
+          - text: It automatically rolls back infrastructure if something goes wrong
+            feedback: Terraform does not roll back; a plan only previews changes.
+      explanation: |
+        The Plan stage lets you preview creates, updates and destroys and verify them against your intent. It does not change infrastructure and cannot guarantee that apply succeeds.
+    - kind: choice
+      prompt: |
+        In a team workflow, a change was reviewed with a speculative plan in a pull request and then merged. Why does the team still review the plan shown by the final apply?
+      data:
+        options:
+          - text: The speculative plan is encrypted and cannot be read
+            feedback: Speculative plan output is readable; that is the point of attaching it to the PR.
+          - text: Terraform requires two plans for every apply
+            feedback: There is no such requirement.
+          - text: The final plan against the merged branch and latest state may differ from the plan reviewed earlier
+            correct: true
+      explanation: |
+        Other changes may have been merged or infrastructure may have changed since the speculative plan ran, so the plan generated at apply time can differ and should be confirmed.
+    - kind: choice
+      prompt: |
+        In which stage of the core workflow is infrastructure actually created or changed?
+      data:
+        options:
+          - text: Write
+            feedback: Writing only changes configuration files.
+          - text: Plan
+            feedback: A plan only previews changes; it does not carry them out.
+          - text: Apply
+            correct: true
+      explanation: |
+        Only the Apply stage provisions real infrastructure, after the plan has been reviewed and approved.
+    - kind: choice
+      prompt: |
+        What is the main reason a team keeps Terraform configuration in a version control system as part of the Write stage?
+      data:
+        options:
+          - text: Terraform cannot read configuration files outside a Git repository
+            feedback: Terraform works in any directory; VCS is a practice, not a requirement.
+          - text: To collaborate through branches and review changes before they are applied
+            correct: true
+          - text: To store the state file and provider plugins
+            feedback: State and the `.terraform` directory should not be committed to VCS.
+      explanation: |
+        Infrastructure as code is treated like application code: team members work in branches and changes go through code review and speculative plans before merge.

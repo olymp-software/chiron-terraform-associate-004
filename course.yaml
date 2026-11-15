@@ -1,0 +1,102 @@
+version: 1
+title: Terraform Associate (004) Exam Prep
+description: Quizzes for every objective of the HashiCorp Certified Terraform Associate (004) exam content list.
+sections:
+  - slug: iac
+    title: 1. Infrastructure as Code (IaC) with Terraform
+    activities:
+      - slug: 1a-what-is-iac
+        title: 1a. Explain what IaC is
+      - slug: 1b-iac-advantages
+        title: 1b. Describe the advantages of IaC patterns
+      - slug: 1c-multi-cloud
+        title: 1c. Multi-cloud, hybrid cloud and service-agnostic workflows
+  - slug: fundamentals
+    title: 2. Terraform fundamentals
+    activities:
+      - slug: 2a-install-providers
+        title: 2a. Install and version Terraform providers
+      - slug: 2b-how-providers-work
+        title: 2b. Describe how Terraform uses providers
+      - slug: 2c-multiple-providers
+        title: 2c. Write configuration using multiple providers
+      - slug: 2d-state-basics
+        title: 2d. Explain how Terraform uses and manages state
+  - slug: workflow
+    title: 3. Core Terraform workflow
+    activities:
+      - slug: 3a-workflow-overview
+        title: 3a. Describe the Terraform workflow
+      - slug: 3b-init
+        title: 3b. Initialize a Terraform working directory
+      - slug: 3c-validate
+        title: 3c. Validate a Terraform configuration
+      - slug: 3d-plan
+        title: 3d. Generate and review an execution plan
+      - slug: 3e-apply
+        title: 3e. Apply changes to infrastructure
+      - slug: 3f-destroy
+        title: 3f. Destroy Terraform-managed infrastructure
+      - slug: 3g-fmt
+        title: 3g. Apply formatting and style adjustments
+  - slug: configuration
+    title: 4. Terraform configuration
+    activities:
+      - slug: 4a-resource-and-data
+        title: 4a. Use and differentiate resource and data blocks
+      - slug: 4b-references
+        title: 4b. Resource attributes and cross-resource references
+      - slug: 4c-variables-outputs
+        title: 4c. Use variables and outputs
+      - slug: 4d-complex-types
+        title: 4d. Understand and use complex types
+      - slug: 4e-expressions-functions
+        title: 4e. Dynamic configuration with expressions and functions
+      - slug: 4f-dependencies
+        title: 4f. Define resource dependencies
+      - slug: 4g-custom-conditions
+        title: 4g. Validate configuration using custom conditions
+      - slug: 4h-sensitive-data
+        title: 4h. Sensitive data and secrets management with Vault
+  - slug: modules
+    title: 5. Terraform modules
+    activities:
+      - slug: 5a-module-sources
+        title: 5a. Explain how Terraform sources modules
+      - slug: 5b-variable-scope
+        title: 5b. Describe variable scope within modules
+      - slug: 5c-use-modules
+        title: 5c. Use modules in configuration
+      - slug: 5d-module-versions
+        title: 5d. Manage module versions
+  - slug: state
+    title: 6. Terraform state management
+    activities:
+      - slug: 6a-local-backend
+        title: 6a. Describe the local backend
+      - slug: 6b-state-locking
+        title: 6b. Describe state locking
+      - slug: 6c-remote-backend
+        title: 6c. Configure remote state using the backend block
+      - slug: 6d-drift-and-state
+        title: 6d. Manage resource drift and Terraform state
+  - slug: maintain
+    title: 7. Maintain infrastructure with Terraform
+    activities:
+      - slug: 7a-import
+        title: 7a. Import existing infrastructure
+      - slug: 7b-inspect-state
+        title: 7b. Use the CLI to inspect state
+      - slug: 7c-verbose-logging
+        title: 7c. When and how to use verbose logging
+  - slug: hcp-terraform
+    title: 8. HCP Terraform
+    activities:
+      - slug: 8a-create-infrastructure
+        title: 8a. Use HCP Terraform to create infrastructure
+      - slug: 8b-collaboration-governance
+        title: 8b. Collaboration and governance features
+      - slug: 8c-workspaces-projects
+        title: 8c. Organize workspaces and projects
+      - slug: 8d-cli-integration
+        title: 8d. Configure and use HCP Terraform integration

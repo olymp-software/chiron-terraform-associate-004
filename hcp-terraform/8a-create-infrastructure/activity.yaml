@@ -1,0 +1,223 @@
+version: 1
+type: quiz
+theory_blocks:
+  - kind: markdown
+    data:
+      content: |
+        # Use HCP Terraform to create infrastructure
+
+        This quiz checks how HCP Terraform runs Terraform for you: the three run workflows
+        (VCS-driven, CLI-driven, API-driven), remote operations and execution modes,
+        the run queue and run stages, and how workspace variables are supplied to runs.
+
+        Docs:
+        - [Workspaces](https://developer.hashicorp.com/terraform/cloud-docs/workspaces)
+        - [HCP Terraform overview](https://developer.hashicorp.com/terraform/cloud-docs/overview)
+        - [Remote operations](https://developer.hashicorp.com/terraform/cloud-docs/run/remote-operations)
+        - [Get started with HCP Terraform](https://developer.hashicorp.com/terraform/tutorials/cloud-get-started)
+data:
+  questions:
+    - kind: choice
+      prompt: |
+        Which run workflows does HCP Terraform support for workspaces? Select three.
+      data:
+        multiple: true
+        options:
+          - text: VCS-driven workflow
+            correct: true
+          - text: SSH-driven workflow
+            feedback: There is no SSH-driven workflow. HCP Terraform never connects to your machines over SSH to run Terraform.
+          - text: CLI-driven workflow
+            correct: true
+          - text: API-driven workflow
+            correct: true
+      explanation: |
+        A workspace gets its configuration from a connected VCS repository, from the
+        Terraform CLI (the `cloud` block integration) or from configuration versions
+        uploaded through the API.
+    - kind: choice
+      prompt: |
+        A workspace uses the VCS-driven workflow and is linked to the `main` branch.
+        A developer opens a pull request against `main`. What does HCP Terraform do?
+      data:
+        multiple: false
+        options:
+          - text: Runs a plan and an apply for the pull request branch
+            feedback: Pull requests never apply. Only changes merged or committed to the linked branch start normal runs.
+          - text: Nothing until the pull request is merged
+            feedback: HCP Terraform reacts to pull requests too, with a plan that cannot be applied.
+          - text: Runs a speculative plan and posts a link to it in the pull request
+            correct: true
+          - text: Creates a new workspace for the pull request branch
+            feedback: A workspace is linked to one branch. Pull requests do not create workspaces.
+      explanation: |
+        For a pull request against the linked branch HCP Terraform runs a speculative
+        (plan-only) plan and reports its status and a link in the pull request. Runs that
+        can apply start only when changes land on the linked branch.
+    - kind: choice
+      prompt: |
+        A workspace uses the default **Remote** execution mode and the CLI-driven workflow.
+        You run `terraform plan` on your laptop. Where does the plan execute?
+      data:
+        multiple: false
+        options:
+          - text: On your laptop; only the plan file is uploaded
+            feedback: In remote mode the configuration is uploaded and Terraform itself runs in HCP Terraform.
+          - text: On HCP Terraform's disposable run environment, with logs streamed to your terminal
+            correct: true
+          - text: On a self-managed HCP Terraform agent
+            feedback: Agents are used only when the workspace execution mode is Agent.
+      explanation: |
+        With remote execution, `plan` and `apply` run on HCP Terraform workers. The CLI
+        uploads a copy of the configuration directory and streams the run output back
+        to the local terminal.
+    - kind: choice
+      prompt: |
+        A workspace is switched to **Local** execution mode. What does HCP Terraform still do for it?
+      data:
+        multiple: false
+        options:
+          - text: Runs Sentinel policy checks before each apply
+            feedback: Policy checks, cost estimation and notifications are unavailable in local mode.
+          - text: Stores the state, acting like a state backend
+            correct: true
+          - text: Executes plans and applies on HCP Terraform workers
+            feedback: In local mode Terraform runs on your own machine or CI worker.
+          - text: Injects workspace environment variables into your local shell
+            feedback: Workspace variables are used only by runs executed by HCP Terraform.
+      explanation: |
+        In local execution mode HCP Terraform only stores state; execution happens on
+        your own machines, and features such as policy checks and cost estimation are
+        not available.
+    - kind: choice
+      prompt: |
+        True or false: by default, HCP Terraform applies a successful plan automatically.
+      data:
+        multiple: false
+        options:
+          - text: "True"
+            feedback: Auto-apply is an optional workspace setting and is off by default.
+          - text: "False"
+            correct: true
+      explanation: |
+        By default a run stops after the plan in the "Needs Confirmation" state and waits
+        for someone with permission to confirm the apply, unless the workspace has
+        auto-apply enabled.
+    - kind: choice
+      prompt: |
+        Which sequence shows the order of run stages in a workspace with cost
+        estimation and Sentinel policies enabled (no run tasks)?
+      data:
+        multiple: false
+        options:
+          - text: Plan → Sentinel policy check → Cost estimation → Apply
+            feedback: Sentinel policy checks run after cost estimation, so policies can use cost data.
+          - text: Plan → Cost estimation → Sentinel policy check → Apply
+            correct: true
+          - text: Cost estimation → Plan → Sentinel policy check → Apply
+            feedback: Cost is estimated from the plan, so it cannot come before it.
+          - text: Plan → Apply → Cost estimation → Sentinel policy check
+            feedback: Policies and cost estimation are evaluated before the apply, so they can stop it.
+      explanation: |
+        A run goes through Pending, Fetching, Plan, (OPA policy check), Cost estimation,
+        Sentinel policy check, Apply and Completion. Run tasks can add pre-plan,
+        post-plan, pre-apply and post-apply stages.
+    - kind: choice
+      prompt: |
+        A run is applying in a workspace and a teammate queues another run in the same
+        workspace. What happens to the new run?
+      data:
+        multiple: false
+        options:
+          - text: It waits in the workspace run queue until the current run finishes
+            correct: true
+          - text: It runs in parallel against the same state
+            feedback: Runs in one workspace never apply in parallel; this would corrupt state.
+          - text: It is rejected with an error and must be queued again later
+            feedback: The run is not rejected, it stays pending in the queue.
+      explanation: |
+        Each workspace keeps its own queue of runs and processes them in order. Plan-only
+        runs are an exception and do not block the queue.
+    - kind: choice
+      prompt: |
+        Which statements about workspace variables are true? Select all that apply.
+      data:
+        multiple: true
+        options:
+          - text: A variable can be a Terraform variable or an environment variable
+            correct: true
+          - text: A sensitive variable is write-only; even admins cannot read its value in the UI or API
+            correct: true
+          - text: Environment variables can use HCL syntax for lists and maps
+            feedback: The HCL option exists only for Terraform variables.
+          - text: Values from a local `terraform.tfvars` are copied into the workspace Variables page
+            feedback: Values loaded from `.tfvars` files are used in the run but are not saved to the workspace variables.
+      explanation: |
+        Workspace variables are either Terraform input variables or shell environment
+        variables (for example provider credentials). Marking a variable sensitive makes
+        it write-only.
+    - kind: choice
+      prompt: |
+        A workspace uses the VCS-driven workflow. A developer runs `terraform apply`
+        from a local checkout configured with the `cloud` block for that workspace.
+        What happens?
+      data:
+        multiple: false
+        options:
+          - text: The apply runs remotely with the local, uncommitted configuration
+            feedback: Applies in a VCS-connected workspace must come from the linked repository.
+          - text: The apply runs locally and uploads the new state
+            feedback: The workspace uses remote execution; local applies are not used here.
+          - text: Terraform refuses the apply because the workspace is connected to VCS
+            correct: true
+      explanation: |
+        For VCS-connected workspaces the CLI can start speculative plans with
+        `terraform plan`, but `terraform apply` is not allowed; changes are applied by
+        committing to the linked branch.
+    - kind: choice
+      prompt: |
+        A CI system uses the API-driven workflow. Which steps make HCP Terraform start a run?
+      data:
+        multiple: false
+        options:
+          - text: Push the code to a Git repository and call the webhook endpoint
+            feedback: That is the VCS-driven workflow, where the VCS provider sends the webhook.
+          - text: Create a configuration version, then upload the configuration as a `.tar.gz` to the returned upload URL
+            correct: true
+          - text: Upload the local `terraform.tfstate` through the state versions API
+            feedback: Uploading state does not start a run; runs need a configuration version.
+      explanation: |
+        In the API-driven workflow you create a configuration version for the workspace
+        and upload a `.tar.gz` of the configuration. HCP Terraform then automatically
+        creates a new run with a plan.
+    - kind: choice
+      prompt: |
+        A workspace uses remote execution. You run `terraform import` from the CLI.
+        Which statement is true?
+      data:
+        multiple: false
+        options:
+          - text: The import runs on HCP Terraform workers like a plan
+            feedback: HCP Terraform does not support remote execution for `terraform import`.
+          - text: The import runs locally, and environment variables defined in the workspace are not available to it
+            correct: true
+          - text: Import is not possible for workspaces managed by HCP Terraform
+            feedback: Import works; it just runs on your machine and writes to the remote state.
+      explanation: |
+        `terraform import` always runs locally. Because of that, environment variables
+        such as provider credentials set in the workspace are not available, so you must
+        provide them locally.
+    - kind: choice
+      prompt: |
+        True or false: a locked workspace still accepts new runs, but they do not begin
+        until the workspace is unlocked.
+      data:
+        multiple: false
+        options:
+          - text: "True"
+            correct: true
+          - text: "False"
+            feedback: Locking does not reject runs; it only stops them from starting.
+      explanation: |
+        Locking a workspace prevents runs from starting. Runs can still be created and
+        wait until someone unlocks the workspace.

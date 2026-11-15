@@ -1,0 +1,152 @@
+version: 1
+type: quiz
+theory_blocks:
+  - kind: markdown
+    data:
+      content: |
+        # Define resource dependencies in configuration
+        This quiz covers how Terraform orders operations: implicit dependencies from references, explicit
+        dependencies with `depends_on`, the resource graph that Terraform walks in parallel (`-parallelism`,
+        default 10), destroy ordering and the `terraform graph` command.
+
+        Docs:
+        - [Resource graph](https://developer.hashicorp.com/terraform/internals/graph)
+        - [Manage resource dependencies](https://developer.hashicorp.com/terraform/tutorials/configuration-language/dependencies)
+        - [depends_on](https://developer.hashicorp.com/terraform/language/meta-arguments/depends_on)
+data:
+  questions:
+    - kind: choice
+      prompt: |
+        Which kind of dependency does this create?
+
+        ```hcl
+        resource "aws_eip" "ip" {
+          instance = aws_instance.web.id
+        }
+        ```
+      data:
+        multiple: false
+        options:
+          - text: An implicit dependency of `aws_eip.ip` on `aws_instance.web`.
+            correct: true
+          - text: An explicit dependency, because an attribute is referenced.
+            feedback: Explicit dependencies are declared with `depends_on`.
+          - text: No dependency; Terraform creates both in parallel.
+            feedback: The reference forces Terraform to create the instance first.
+          - text: A dependency of `aws_instance.web` on `aws_eip.ip`.
+            feedback: The direction is reversed; the EIP depends on the instance.
+      explanation: |
+        Referencing another resource's attribute creates an implicit dependency. Terraform uses it to create
+        the instance before the EIP.
+    - kind: choice
+      prompt: When should you use `depends_on`?
+      data:
+        multiple: false
+        options:
+          - text: For every reference, to make dependencies explicit and readable.
+            feedback: References already create dependencies; `depends_on` is a last resort.
+          - text: When a resource relies on another resource's behavior but doesn't reference any of its data.
+            correct: true
+          - text: To make Terraform create resources sequentially instead of in parallel.
+            feedback: Use `-parallelism` for that; `depends_on` only adds graph edges.
+          - text: To make a resource depend on a variable.
+            feedback: Variables are referenced directly; `depends_on` lists resources or modules.
+      explanation: |
+        `depends_on` is for hidden dependencies that Terraform can't infer, e.g. an instance whose software
+        needs an IAM policy that isn't referenced. HashiCorp recommends it as a last resort.
+    - kind: choice
+      prompt: What can be listed in `depends_on`? Select all that apply.
+      data:
+        multiple: true
+        options:
+          - text: A whole resource, e.g. `aws_s3_bucket.logs`.
+            correct: true
+          - text: A whole module, e.g. `module.network`.
+            correct: true
+          - text: A single attribute, e.g. `aws_s3_bucket.logs.arn`.
+            feedback: "`depends_on` takes references to whole objects, not attributes."
+          - text: A string with the resource name, e.g. `"aws_s3_bucket.logs"`.
+            feedback: Elements must be references, not strings.
+      explanation: |
+        `depends_on` is a list of references to other resources or child modules in the same calling module.
+        Arbitrary expressions and quoted strings aren't allowed.
+    - kind: choice
+      prompt: |
+        By default, how many resource operations does Terraform perform concurrently while walking the graph?
+      data:
+        multiple: false
+        options:
+          - text: "1"
+            feedback: Terraform walks independent nodes in parallel.
+          - text: "5"
+            feedback: The default is different.
+          - text: "10"
+            correct: true
+          - text: Unlimited
+            feedback: Concurrency is limited by `-parallelism`.
+      explanation: |
+        Terraform walks the graph in parallel, limited by `-parallelism=n` with a default of 10. Setting it to
+        1 makes the walk sequential.
+    - kind: choice
+      prompt: |
+        True or false: when destroying, Terraform destroys a dependent resource before the resource it depends
+        on.
+      data:
+        multiple: false
+        options:
+          - text: "True"
+            correct: true
+          - text: "False"
+            feedback: Destroy order is the reverse of create order.
+      explanation: |
+        Destroy walks the dependency graph in reverse: dependents (e.g. an EIP) are destroyed before the objects
+        they depend on (e.g. the instance).
+    - kind: choice
+      prompt: Which command outputs the dependency graph in DOT format?
+      data:
+        multiple: false
+        options:
+          - text: "`terraform show -graph`"
+            feedback: "`show` prints state or plan, not the graph."
+          - text: "`terraform state list`"
+            feedback: It only lists resource addresses.
+          - text: "`terraform providers`"
+            feedback: It shows the provider requirements tree.
+          - text: "`terraform graph`"
+            correct: true
+      explanation: |
+        `terraform graph` outputs the graph in DOT format, which can be rendered with Graphviz.
+    - kind: choice
+      prompt: |
+        Two resources `aws_s3_bucket.a` and `aws_instance.b` have no references between them and no
+        `depends_on`. What does Terraform do?
+      data:
+        multiple: false
+        options:
+          - text: Creates them in the order they appear in the files.
+            feedback: File order doesn't define execution order.
+          - text: Creates them in alphabetical order of resource type.
+            feedback: Order is defined only by the graph.
+          - text: May create them in parallel, as independent nodes of the graph.
+            correct: true
+      explanation: |
+        Terraform builds a graph from dependencies, not from the order of blocks. Nodes without dependencies
+        between them can be processed concurrently.
+    - kind: choice
+      prompt: |
+        Which statements about `depends_on` on a `data` block are true? Select two.
+      data:
+        multiple: true
+        options:
+          - text: If the dependency has pending changes, Terraform defers reading the data source until apply.
+            correct: true
+          - text: It can cause more values to be shown as `(known after apply)` in the plan.
+            correct: true
+          - text: "`depends_on` isn't supported on data blocks."
+            feedback: Data blocks support `depends_on`.
+          - text: It forces the data source to be recreated on every apply.
+            feedback: Data sources are read, never created or recreated.
+      explanation: |
+        A data block with `depends_on` waits for the dependency. If that dependency changes in the plan, the
+        read moves to apply, so its results become unknown during planning. That's why explicit dependencies on
+        data sources should be used carefully.

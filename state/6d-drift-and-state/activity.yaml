@@ -1,0 +1,271 @@
+version: 1
+type: quiz
+theory_blocks:
+  - kind: markdown
+    data:
+      content: |
+        # Manage resource drift and Terraform state
+
+        This quiz covers detecting and handling drift with refresh-only plans and applies (and why
+        `terraform refresh` is deprecated), forcing replacement with `-replace`, and changing state safely:
+        `moved` and `removed` blocks versus the `terraform state mv` and `terraform state rm` commands.
+
+        **Docs**
+
+        - [State](https://developer.hashicorp.com/terraform/language/state)
+        - [Refactor state](https://developer.hashicorp.com/terraform/language/state/refactor)
+        - [moved block](https://developer.hashicorp.com/terraform/language/block/moved)
+        - [removed block](https://developer.hashicorp.com/terraform/language/block/removed)
+        - [Manage resource drift](https://developer.hashicorp.com/terraform/tutorials/state/resource-drift)
+        - [Use refresh-only mode](https://developer.hashicorp.com/terraform/tutorials/state/refresh)
+data:
+  questions:
+    - kind: choice
+      prompt: |
+        Someone changed a tag on a Terraform-managed EC2 instance in the AWS console. The configuration was not
+        changed. What does a normal `terraform apply` propose?
+      data:
+        multiple: false
+        options:
+          - text: Nothing, because Terraform only compares configuration with state
+            feedback: By default plan and apply refresh state against real infrastructure first.
+          - text: Updating the configuration files to include the new tag
+            feedback: Terraform never rewrites your configuration.
+          - text: Reverting the tag to the value in the configuration
+            correct: true
+          - text: Only updating the state to record the new tag
+            feedback: That is what a refresh-only apply does.
+      explanation: |
+        Terraform compares state with real infrastructure whenever you run plan or apply. Without `-refresh-only`,
+        it plans to make the infrastructure match the configuration again, reverting the manual change.
+
+    - kind: choice
+      prompt: |
+        What does `terraform plan -refresh-only` show?
+      data:
+        multiple: false
+        options:
+          - text: How the state and root module outputs would change to match objects modified outside Terraform
+            correct: true
+          - text: The changes needed to make the infrastructure match the configuration
+            feedback: That is a normal plan.
+          - text: Only resources that will be destroyed
+            feedback: That is closer to a destroy plan.
+          - text: The difference between two state files
+            feedback: Refresh-only compares state with real infrastructure.
+      explanation: |
+        Refresh-only mode creates a plan whose goal is only to update the state and root module outputs to match
+        changes made outside Terraform, without proposing changes to remote objects.
+
+    - kind: choice
+      prompt: |
+        Which statements about `terraform apply -refresh-only` are true? Select all that apply.
+      data:
+        multiple: true
+        options:
+          - text: It writes the detected changes to the state
+            correct: true
+          - text: It does not modify any real infrastructure
+            correct: true
+          - text: It reverts drifted resources to match the configuration
+            feedback: A refresh-only operation does not undo drift.
+          - text: It asks for confirmation before updating the state, unless `-auto-approve` is used
+            correct: true
+      explanation: |
+        A refresh-only apply updates state to match real infrastructure after you confirm. It does not modify
+        infrastructure to match the configuration.
+
+    - kind: choice
+      prompt: |
+        Why is `terraform refresh` deprecated?
+      data:
+        multiple: false
+        options:
+          - text: It modifies real infrastructure without confirmation
+            feedback: Refresh never modifies real infrastructure; it modifies state.
+          - text: It was replaced by `terraform state pull`
+            feedback: "`state pull` only downloads state; the replacement is `-refresh-only`."
+          - text: It only works with the local backend
+            feedback: That is not the reason.
+          - text: It updates state without showing changes or asking for confirmation, which is risky
+            correct: true
+      explanation: |
+        `terraform refresh` is an alias for `terraform apply -refresh-only -auto-approve`. With misconfigured
+        credentials Terraform might think all objects were deleted and drop them from state without a prompt.
+        Use `terraform apply -refresh-only` instead.
+
+    - kind: choice
+      prompt: |
+        A VM is in a bad state, but its configuration has not changed. What does this command do?
+
+        ```shell
+        terraform apply -replace="aws_instance.web"
+        ```
+      data:
+        multiple: false
+        options:
+          - text: Removes `aws_instance.web` from state without destroying it
+            feedback: That is a `removed` block with `destroy = false` or `terraform state rm`.
+          - text: Plans to destroy and recreate `aws_instance.web`, even though no change requires it
+            correct: true
+          - text: Renames `aws_instance.web` in state
+            feedback: Renaming is done with `moved` blocks or `terraform state mv`.
+          - text: Marks the resource as tainted without planning any change
+            feedback: "`-replace` creates a plan that includes the replacement right away."
+      explanation: |
+        `-replace=ADDRESS` forces replacement of a resource instance even when no configuration change requires
+        it. It replaces the older `terraform taint` workflow and cannot be combined with `-destroy`.
+
+    - kind: choice
+      prompt: |
+        You rename a resource from `aws_instance.a` to `aws_instance.b` and add:
+
+        ```hcl
+        moved {
+          from = aws_instance.a
+          to   = aws_instance.b
+        }
+        ```
+
+        What does the next `terraform plan` propose?
+      data:
+        multiple: false
+        options:
+          - text: Destroy `aws_instance.a` and create `aws_instance.b`
+            feedback: That is what happens without the `moved` block.
+          - text: Create `aws_instance.b` and keep `aws_instance.a` unmanaged
+            feedback: The existing object is rebound to the new address, not abandoned.
+          - text: Update the existing object's address in state to `aws_instance.b`, without destroying it
+            correct: true
+          - text: An error, because `moved` blocks only work for modules
+            feedback: "`moved` works for resources, modules and their instances."
+      explanation: |
+        Before planning, Terraform finds the object at the `from` address and records it under the `to` address,
+        so the resource is not destroyed.
+
+    - kind: choice
+      prompt: |
+        You switch a resource from `count` to `for_each`. Which `moved` block keeps the existing object at index
+        `0` as the instance with key `"small"`?
+      data:
+        multiple: false
+        options:
+          - text: |
+              `from = aws_instance.c[0]`, `to = aws_instance.c["small"]`
+            correct: true
+          - text: |
+              `from = aws_instance.c["small"]`, `to = aws_instance.c[0]`
+            feedback: "`from` is the old address and `to` the new one; this is reversed."
+          - text: No `moved` block is possible; instance keys cannot be changed
+            feedback: "`moved` can switch between count indexes and for_each keys."
+      explanation: |
+        When an address includes an instance key, `moved` maps individual instances, so you can switch between
+        `count` and `for_each` keys:
+
+        ```hcl
+        moved {
+          from = aws_instance.c[0]
+          to   = aws_instance.c["small"]
+        }
+        ```
+
+    - kind: choice
+      prompt: |
+        Another team will now manage a database outside your configuration. What does this block do after you
+        delete the `aws_db_instance.main` resource block and apply?
+
+        ```hcl
+        removed {
+          from = aws_db_instance.main
+
+          lifecycle {
+            destroy = false
+          }
+        }
+        ```
+      data:
+        multiple: false
+        options:
+          - text: Destroys the database and removes it from state
+            feedback: That is the behavior with `destroy = true` (the default).
+          - text: Removes the database from state without destroying it
+            correct: true
+          - text: Moves the database to a different state file
+            feedback: "`removed` only forgets the object; importing elsewhere is a separate step."
+          - text: Prevents anyone from destroying the database, like `prevent_destroy`
+            feedback: "`prevent_destroy` is a lifecycle argument of resource blocks, not this."
+      explanation: |
+        A `removed` block removes a resource from state. With `lifecycle { destroy = false }` the real object
+        stays, so another tool or team can take over management.
+
+    - kind: choice
+      prompt: |
+        Why do the docs recommend `removed` blocks over `terraform state rm`? Select all that apply.
+      data:
+        multiple: true
+        options:
+          - text: The removal appears in the normal plan and apply workflow and can be reviewed
+            correct: true
+          - text: A single change can remove more than one resource
+            correct: true
+          - text: "`terraform state rm` destroys the real object, while `removed` does not"
+            feedback: "`state rm` also leaves the remote object in place; it only forgets it."
+          - text: "`terraform state rm` does not work with remote backends"
+            feedback: "`state rm` works with any backend."
+      explanation: |
+        Both forget the object without destroying it, but `removed` blocks are declared in configuration, so the
+        change goes through plan review and can cover several resources.
+
+    - kind: choice
+      prompt: |
+        You ran `terraform state rm aws_s3_bucket.logs` but kept the `aws_s3_bucket.logs` resource block in the
+        configuration. What will the next `terraform plan` propose?
+      data:
+        multiple: false
+        options:
+          - text: No changes, because the bucket still exists
+            feedback: Terraform no longer knows that object, so it is not linked to the resource block.
+          - text: Destroying the bucket
+            feedback: Terraform cannot destroy an object it no longer tracks.
+          - text: Importing the bucket automatically
+            feedback: Import only happens with an `import` block or `terraform import`.
+          - text: Creating a new bucket for `aws_s3_bucket.logs`
+            correct: true
+      explanation: |
+        `terraform state rm` makes Terraform forget the object. A later plan proposes creating a new object for
+        that address, which may fail if names conflict with the existing one.
+
+    - kind: choice
+      prompt: |
+        Which statements about `terraform state mv` and `moved` blocks are true? Select all that apply.
+      data:
+        multiple: true
+        options:
+          - text: "`terraform state mv` changes state immediately, outside the plan and apply workflow"
+            correct: true
+          - text: "`moved` blocks can turn a managed resource into a data resource"
+            feedback: You cannot use `moved` to change a `resource` into a data resource.
+          - text: "`terraform state mv` can move a resource into a child module, for example `module.worker.packet_device.worker`"
+            correct: true
+          - text: "`terraform state mv` can move an instance to a different resource type"
+            feedback: A resource can only be moved to an address of the same resource type.
+      explanation: |
+        `moved` blocks (Terraform 1.1+) are the declarative, reviewable way to refactor; `terraform state mv` edits
+        state directly. Both require the same resource type at source and destination.
+
+    - kind: choice
+      prompt: |
+        You maintain a shared module and renamed a resource two releases ago using a `moved` block. Should you
+        delete that `moved` block now?
+      data:
+        multiple: false
+        options:
+          - text: Yes, `moved` blocks must be removed after the first apply
+            feedback: Terraform does not require removing them.
+          - text: No, removing it is a breaking change for callers that still have the old address in state
+            correct: true
+          - text: Yes, otherwise Terraform moves the resource again on every apply
+            feedback: A move is applied once; afterwards there is nothing at the old address.
+      explanation: |
+        Removing a `moved` block is a breaking change: configurations still using the old address would plan to
+        destroy the object. HashiCorp recommends keeping historical `moved` blocks in shared modules.

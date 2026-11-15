@@ -1,0 +1,244 @@
+version: 1
+type: quiz
+theory_blocks:
+  - kind: markdown
+    data:
+      content: |
+        # Use the CLI to inspect state
+
+        This quiz covers the commands that read and change Terraform state without editing the
+        state file by hand: `terraform state list`, `show`, `mv`, `rm`, `pull` and `push`, plus
+        `terraform show` and `terraform output`. Recall which commands are read-only, which write
+        a backup, which output is meant for people and which (`-json`, `-raw`) for scripts.
+
+        **Docs**
+
+        - [terraform state](https://developer.hashicorp.com/terraform/cli/commands/state)
+        - [terraform state list](https://developer.hashicorp.com/terraform/cli/commands/state/list)
+        - [terraform show](https://developer.hashicorp.com/terraform/cli/commands/show)
+        - [Tutorial: Manage resources in Terraform state](https://developer.hashicorp.com/terraform/tutorials/state/state-cli)
+data:
+  questions:
+    - kind: choice
+      prompt: |
+        You want a quick list of every resource address Terraform currently tracks,
+        including resources in modules. Which command do you run?
+      data:
+        options:
+          - text: "`terraform show -json`"
+            feedback: That prints the whole state as JSON, not a list of addresses.
+          - text: "`terraform state list`"
+            correct: true
+          - text: "`terraform output`"
+            feedback: "`terraform output` shows root module output values, not resources."
+          - text: "`terraform state pull`"
+            feedback: That prints the raw state file content.
+      explanation: |
+        `terraform state list` prints one resource address per line; with no arguments it lists
+        all resources in the state, including those in modules.
+
+    - kind: choice
+      prompt: |
+        The state contains these resources:
+
+        ```text
+        aws_instance.foo
+        aws_instance.bar[0]
+        aws_instance.bar[1]
+        module.elb.aws_elb.main
+        ```
+
+        What does `terraform state list aws_instance.bar` print?
+      data:
+        options:
+          - text: Nothing, because `aws_instance.bar` is not an exact address in state
+            feedback: A resource address matches all of its instances.
+          - text: All four addresses
+            feedback: The address argument filters the list.
+          - text: "`aws_instance.bar[0]` and `aws_instance.bar[1]`"
+            correct: true
+          - text: All attributes of `aws_instance.bar[0]`
+            feedback: "`state list` never prints attributes; `state show` does."
+      explanation: |
+        Addresses passed to `terraform state list` filter the output; a resource address
+        matches each of its indexed instances.
+
+    - kind: choice
+      prompt: |
+        You know the ID of a security group, `sg-1234abcd`, and want to find which resource
+        address in state manages it. Which command helps?
+      data:
+        options:
+          - text: "`terraform state list -id=sg-1234abcd`"
+            correct: true
+          - text: "`terraform state show sg-1234abcd`"
+            feedback: "`state show` takes a resource address, not a remote object ID."
+          - text: "`terraform output sg-1234abcd`"
+            feedback: "`terraform output` takes the name of an output value."
+          - text: "`terraform import -id=sg-1234abcd`"
+            feedback: Import adopts objects into state; it does not search state.
+      explanation: |
+        The `-id` option of `terraform state list` lists the resource with the given ID, which
+        helps you locate where it is defined.
+
+    - kind: choice
+      prompt: |
+        A script needs to read resource attributes from the current state in a stable,
+        machine-readable format. Which command should it use?
+      data:
+        options:
+          - text: "`terraform state show` and parse its output"
+            feedback: |
+              The docs say `state show` output is for humans; software should use
+              `terraform show -json`.
+          - text: "`terraform show -json`"
+            correct: true
+          - text: "`terraform state list -json`"
+            feedback: "`terraform state list` has no `-json` option and prints addresses only."
+      explanation: |
+        `terraform show -json` prints a machine-readable JSON representation of the state
+        (or of a plan file, if you pass one). Note that sensitive values appear in plain text in it.
+
+    - kind: choice
+      prompt: |
+        You run `terraform state rm 'aws_instance.legacy'`. What happens?
+      data:
+        options:
+          - text: The EC2 instance is terminated and removed from state
+            feedback: "`state rm` never destroys anything; use `terraform destroy` for that."
+          - text: |
+              Terraform forgets the instance; it keeps running, and the next plan proposes to
+              create a new one if the `resource` block is still in configuration
+            correct: true
+          - text: The `resource` block is removed from the configuration
+            feedback: State commands never change configuration files.
+          - text: The instance is moved to a backup state and restored on the next apply
+            feedback: Nothing is restored; the binding is simply removed.
+      explanation: |
+        `terraform state rm` removes Terraform's binding to the remote object without destroying it.
+        The docs recommend `removed` blocks instead, so removals are reviewed in plan and apply.
+
+    - kind: choice
+      prompt: |
+        You renamed `resource "aws_instance" "worker"` to `resource "aws_instance" "helper"`
+        in configuration. Which CLI command keeps the existing instance and avoids a
+        destroy-and-create plan?
+      data:
+        options:
+          - text: "`terraform state rm aws_instance.worker`"
+            feedback: That only forgets the instance; Terraform would then try to create a new one.
+          - text: "`terraform state push aws_instance.helper`"
+            feedback: "`state push` uploads a whole state file; it does not rename addresses."
+          - text: "`terraform state mv aws_instance.worker aws_instance.helper`"
+            correct: true
+      explanation: |
+        `terraform state mv SOURCE DESTINATION` makes an existing remote object tracked under
+        a new address, typically after renaming a resource or moving it into a module.
+
+    - kind: choice
+      prompt: |
+        A root module has a sensitive output `password`. Which commands print its value in
+        plain text? Select all that apply.
+      data:
+        multiple: true
+        options:
+          - text: "`terraform output`"
+            feedback: When listing all outputs, sensitive values are shown as `<sensitive>`.
+          - text: "`terraform output password`"
+            correct: true
+          - text: "`terraform output -json`"
+            correct: true
+          - text: "`terraform output -raw password`"
+            correct: true
+      explanation: |
+        `sensitive` only redacts values in the list of all outputs. Requesting the output
+        by name, or using `-json` or `-raw`, shows the value in plain text.
+
+    - kind: choice
+      prompt: |
+        A shell script needs the string output `lb_address` with no quotes or extra
+        formatting, to pass it to `curl`. Which command fits best?
+      data:
+        options:
+          - text: "`terraform output -raw lb_address`"
+            correct: true
+          - text: "`terraform output lb_address`"
+            feedback: The default format prints the string in quotes and may change over time.
+          - text: "`terraform state show lb_address`"
+            feedback: "`state show` takes a resource address, not an output name."
+          - text: "`terraform show -raw lb_address`"
+            feedback: "`terraform show` has no `-raw` option."
+      explanation: |
+        `-raw` prints a string, number or bool value as plain text, ready for shell scripts.
+        Use `-json` for complex types.
+
+    - kind: choice
+      prompt: |
+        In which cases does `terraform state push` refuse to overwrite the destination state
+        unless you pass `-force`? Select two.
+      data:
+        multiple: true
+        options:
+          - text: The pushed state has a different `lineage` than the destination
+            correct: true
+          - text: The pushed state contains more resources than the destination
+            feedback: The number of resources is not a safety check.
+          - text: The destination `serial` is higher than the serial of the pushed state
+            correct: true
+          - text: The destination is a local state file
+            feedback: "`state push` works with local and remote backends."
+      explanation: |
+        Different lineage means unrelated states; a higher destination serial means it has changes
+        your copy lacks. `-force` disables both checks, which is not recommended.
+
+    - kind: choice
+      prompt: |
+        True or false: every `terraform state` subcommand that modifies state writes a backup
+        file, and this backup cannot be disabled.
+      data:
+        options:
+          - text: "True"
+            correct: true
+          - text: "False"
+            feedback: |
+              Terraform requires a backup for every state modification; read-only
+              subcommands such as `list` write none.
+      explanation: |
+        Because state is sensitive, state-modifying subcommands always write a backup
+        (its path can be set with `-backup`); you delete backups manually if you don't want them.
+
+    - kind: choice
+      prompt: |
+        Your state is stored in a remote backend. Which command prints the raw state to
+        stdout so you can inspect it with `jq`?
+      data:
+        options:
+          - text: "`terraform state list`"
+            feedback: That prints only resource addresses.
+          - text: "`terraform state pull`"
+            correct: true
+          - text: "`terraform state push -`"
+            feedback: "`push -` reads state from stdin and uploads it; it does the opposite."
+          - text: "`terraform output -json`"
+            feedback: That prints output values only, not the whole state.
+      explanation: |
+        `terraform state pull` downloads the state from its current location (remote or local)
+        and prints it to stdout, upgraded to the state format of your Terraform version.
+
+    - kind: choice
+      prompt: |
+        Which statements about `terraform show` are true? Select all that apply.
+      data:
+        multiple: true
+        options:
+          - text: With no file argument, it shows the latest state snapshot
+            correct: true
+          - text: Given a saved plan file, it shows that plan
+            correct: true
+          - text: It refreshes all resources against the real infrastructure before printing
+            feedback: "`terraform show` only reads a state or plan file."
+          - text: With `-json`, sensitive values are redacted
+            feedback: With `-json`, sensitive values in state are displayed in plain text.
+      explanation: |
+        `terraform show [file]` gives human-readable output from a state or plan file;
+        with no file it shows the latest state snapshot, and `-json` makes it machine-readable.

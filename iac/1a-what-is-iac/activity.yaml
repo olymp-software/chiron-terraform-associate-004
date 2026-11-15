@@ -1,0 +1,193 @@
+version: 1
+type: quiz
+theory_blocks:
+  - kind: markdown
+    data:
+      content: |
+        # Explain what IaC is
+        This quiz checks that you can explain Infrastructure as Code (IaC) and where Terraform fits in.
+        Recall: IaC manages infrastructure through configuration files instead of GUIs or manual steps,
+        Terraform configuration is declarative (it describes the desired end state), and Terraform works
+        through providers, an execution plan and a state file.
+
+        Docs:
+        - [What is Terraform?](https://developer.hashicorp.com/terraform/intro)
+        - [What is Infrastructure as Code with Terraform?](https://developer.hashicorp.com/terraform/tutorials/aws-get-started/infrastructure-as-code)
+data:
+  questions:
+    - kind: choice
+      prompt: Which statement best describes Infrastructure as Code (IaC)?
+      data:
+        multiple: false
+        options:
+          - text: Managing infrastructure by clicking through a cloud provider's web console and documenting the steps in a wiki.
+            feedback: That is manual provisioning; IaC replaces GUI steps with code.
+          - text: Managing and provisioning infrastructure through configuration files that can be versioned, reused and shared.
+            correct: true
+          - text: Writing application code that runs inside virtual machines.
+            feedback: IaC describes the infrastructure itself, not the applications running on it.
+          - text: Using a monitoring tool to detect infrastructure outages.
+            feedback: Monitoring observes infrastructure; it does not define or provision it.
+      explanation: |
+        IaC lets you manage infrastructure with configuration files rather than through a graphical
+        user interface, so you can build, change and manage it in a safe, consistent and repeatable way.
+
+    - kind: choice
+      prompt: |
+        Terraform configuration is **declarative**. What does that mean?
+      data:
+        multiple: false
+        options:
+          - text: You write the exact sequence of API calls Terraform must run.
+            feedback: That is an imperative (procedural) approach.
+          - text: You must declare every dependency between resources explicitly.
+            feedback: Terraform infers most dependencies from references between resources.
+          - text: You describe the desired end state, and Terraform works out the steps to reach it.
+            correct: true
+      explanation: |
+        Terraform configuration files describe the end state of your infrastructure. Terraform builds a
+        resource graph, calculates dependencies and determines the operations needed to reach that state.
+
+    - kind: choice
+      prompt: |
+        True or false: Terraform configuration files are written in a human-readable language, and
+        Terraform uses them to manage the full lifecycle of the resources they describe.
+      data:
+        multiple: false
+        options:
+          - text: "True"
+            correct: true
+          - text: "False"
+            feedback: Terraform uses human-readable HCL configuration and manages create, update and destroy.
+      explanation: |
+        Terraform is HashiCorp's IaC tool. You define resources in human-readable, declarative
+        configuration files (HCL), and Terraform manages the infrastructure's lifecycle.
+
+    - kind: choice
+      prompt: How does Terraform create and manage resources on cloud platforms and other services?
+      data:
+        multiple: false
+        options:
+          - text: By installing an agent on every managed server.
+            feedback: Terraform is agentless; it talks to platform APIs.
+          - text: Through the platforms' APIs, using provider plugins.
+            correct: true
+          - text: By generating shell scripts that an operator runs manually.
+            feedback: Terraform performs operations itself through APIs.
+          - text: Only through SSH connections to the target machines.
+            feedback: Terraform works through the APIs exposed by providers' platforms.
+      explanation: |
+        Terraform manages resources through the APIs of cloud platforms and services. Providers enable
+        Terraform to work with virtually any platform or service with an accessible API.
+
+    - kind: choice
+      prompt: |
+        What is the order of the core Terraform workflow?
+      data:
+        multiple: false
+        options:
+          - text: Plan → Write → Apply
+            feedback: You cannot plan before writing the configuration.
+          - text: Apply → Plan → Write
+            feedback: Applying comes last, after reviewing the plan.
+          - text: Write → Apply → Plan
+            feedback: The plan is reviewed before changes are applied.
+          - text: Write → Plan → Apply
+            correct: true
+      explanation: |
+        The core workflow is **Write** (define resources), **Plan** (Terraform creates an execution plan
+        describing what it will create, update or destroy) and **Apply** (on approval, Terraform performs
+        the operations in the correct order).
+
+    - kind: choice
+      prompt: What role does the Terraform state file play?
+      data:
+        multiple: false
+        options:
+          - text: It stores the HCL source code of the configuration.
+            feedback: Source code lives in `.tf` files; state records real infrastructure.
+          - text: It contains the list of providers available in the Terraform Registry.
+            feedback: The Registry is a separate service; state describes your managed resources.
+          - text: It acts as a source of truth for your environment, so Terraform can compare real infrastructure with the configuration.
+            correct: true
+          - text: It is only a log file used for debugging and can be safely deleted at any time.
+            feedback: Deleting state makes Terraform lose track of the resources it manages.
+      explanation: |
+        Terraform keeps track of your real infrastructure in a state file, which acts as a source of
+        truth. Terraform compares the state with your configuration to determine the changes to make.
+
+    - kind: choice
+      prompt: |
+        What does this configuration describe?
+
+        ```hcl
+        resource "aws_instance" "web" {
+          ami           = "ami-0abcdef1234567890"
+          instance_type = "t3.micro"
+        }
+        ```
+      data:
+        multiple: false
+        options:
+          - text: A command that immediately starts an EC2 instance every time the file is read.
+            feedback: Configuration is declarative; nothing happens until `terraform apply`.
+          - text: The desired state of one EC2 instance; Terraform creates it only if it does not already exist in state.
+            correct: true
+          - text: A script that creates a new EC2 instance on every `terraform apply`.
+            feedback: Repeated applies with no changes do not create more instances.
+          - text: A data lookup of an existing EC2 instance named `web`.
+            feedback: Data lookups use a `data` block, not `resource`.
+      explanation: |
+        A `resource` block declares a desired piece of infrastructure. Terraform compares it with state
+        and real infrastructure; when they already match, applying again makes no changes.
+
+    - kind: choice
+      prompt: |
+        Which kinds of infrastructure can Terraform manage? Select all that apply.
+      data:
+        multiple: true
+        options:
+          - text: Low-level components such as compute, storage and networking
+            correct: true
+          - text: High-level components such as DNS entries and SaaS features
+            correct: true
+          - text: On-premises resources, as well as cloud resources
+            correct: true
+          - text: Only resources in AWS, Azure and Google Cloud
+            feedback: Providers exist for virtually any platform or service with an API.
+      explanation: |
+        Terraform can manage low-level components like compute, storage and networking, as well as
+        high-level components like DNS entries and SaaS features, both in the cloud and on-prem.
+
+    - kind: choice
+      prompt: |
+        True or false: With IaC, infrastructure changes can be reviewed, versioned and rolled back
+        using the same version control tools as application code.
+      data:
+        multiple: false
+        options:
+          - text: "False"
+            feedback: IaC configuration is plain text and fits naturally into version control.
+          - text: "True"
+            correct: true
+      explanation: |
+        Because infrastructure is described in configuration files, you can commit them to version
+        control, review changes and track history like any other code.
+
+    - kind: choice
+      prompt: |
+        During `terraform apply`, how does Terraform decide in which order to create resources?
+      data:
+        multiple: false
+        options:
+          - text: It respects resource dependencies from its resource graph and creates independent resources in parallel.
+            correct: true
+          - text: It creates resources strictly in the order they appear in the `.tf` files.
+            feedback: File order does not matter; dependencies do.
+          - text: It creates them in alphabetical order of resource names.
+            feedback: Names do not affect order; the dependency graph does.
+          - text: The operator must enter the order interactively.
+            feedback: Terraform calculates the order automatically.
+      explanation: |
+        Terraform builds a resource graph to determine dependencies, performs operations in the correct
+        order and creates or modifies non-dependent resources in parallel.

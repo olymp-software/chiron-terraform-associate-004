@@ -1,0 +1,142 @@
+version: 1
+type: quiz
+theory_blocks:
+  - kind: markdown
+    data:
+      content: |
+        # Validate a Terraform configuration
+
+        This quiz covers `terraform validate`: what it checks (syntax and internal consistency), what it does **not** check (remote services, state, provider APIs), and when to use it.
+        Recall that it needs an initialized directory, the `-json` option, and how it relates to `terraform fmt` and `terraform plan`.
+
+        Docs:
+        - [terraform validate](https://developer.hashicorp.com/terraform/cli/commands/validate)
+        - [Troubleshoot Terraform tutorial](https://developer.hashicorp.com/terraform/tutorials/configuration-language/troubleshooting-workflow)
+data:
+  questions:
+    - kind: choice
+      prompt: What does `terraform validate` check?
+      data:
+        options:
+          - text: That the configuration is syntactically valid and internally consistent
+            correct: true
+          - text: That the configured provider credentials are valid
+            feedback: Validate does not contact provider APIs.
+          - text: That the real infrastructure matches the state file
+            feedback: Validate does not read state or remote objects; drift is detected by a plan.
+          - text: That files follow the canonical formatting style
+            feedback: That is `terraform fmt -check`.
+      explanation: |
+        `terraform validate` verifies that a configuration is syntactically valid and internally consistent. It does not validate remote services such as remote state or provider APIs.
+    - kind: choice
+      prompt: Which problems can `terraform validate` detect? Select all that apply.
+      data:
+        multiple: true
+        options:
+          - text: A reference to an input variable that is not declared
+            correct: true
+          - text: An AMI ID that does not exist in the AWS account
+            feedback: Validate does not call the provider API, so it cannot know whether the AMI exists.
+          - text: A required argument missing from a resource block
+            correct: true
+          - text: Invalid HCL syntax, such as an unclosed brace
+            correct: true
+          - text: An expired cloud access key
+            feedback: Credentials are only used when Terraform talks to the provider, for example during plan.
+      explanation: |
+        Validate catches syntax errors, undeclared references, wrong argument names and missing required arguments using the provider schemas, but nothing that needs remote calls.
+    - kind: choice
+      prompt: |
+        What does `terraform validate` report for this configuration (no `variable` blocks exist in the module)?
+
+        ```hcl
+        provider "aws" {
+          region = var.region
+        }
+        ```
+      data:
+        options:
+          - text: Success, because the value can be passed later with `-var`
+            feedback: The variable must be declared; values are passed only for declared variables.
+          - text: An error about a reference to an undeclared input variable
+            correct: true
+          - text: Nothing, validate ignores provider blocks
+            feedback: Provider blocks are part of the configuration and are validated too.
+      explanation: |
+        Every `var.<name>` reference must have a matching `variable` block. Validate reports "Reference to undeclared input variable".
+    - kind: choice
+      prompt: |
+        True or false: `terraform validate` can be run in a directory that has never been initialized.
+      data:
+        options:
+          - text: "True"
+            feedback: Validate needs installed providers and modules, so the directory must be initialized first.
+          - text: "False"
+            correct: true
+      explanation: |
+        Validation requires an initialized working directory with all plugins and modules installed.
+    - kind: choice
+      prompt: |
+        A CI job only needs to validate a configuration and has no credentials for the S3 backend. How should it initialize the directory?
+      data:
+        options:
+          - text: "`terraform init -upgrade`"
+            feedback: This still initializes the backend.
+          - text: "`terraform init -reconfigure`"
+            feedback: This still initializes the configured backend, just ignoring saved settings.
+          - text: "`terraform init -backend=false`"
+            correct: true
+          - text: Skip init; validate does not need it
+            feedback: Validate requires an initialized directory.
+      explanation: |
+        The docs recommend `terraform init -backend=false` to initialize a directory for validation without accessing the configured backend.
+    - kind: choice
+      prompt: Which option makes `terraform validate` produce machine-readable output for editors or other tools?
+      data:
+        options:
+          - text: "`-json`"
+            correct: true
+          - text: "`-out=validate.json`"
+            feedback: "`validate` has no `-out` option; `-out` saves plans."
+          - text: "`-check`"
+            feedback: "`-check` belongs to `terraform fmt`."
+      explanation: |
+        `terraform validate -json` prints results as JSON, which is used by editor integrations and automation. It always disables color.
+    - kind: choice
+      prompt: |
+        True or false: `terraform plan` performs validation of the configuration as part of its work, so errors that `validate` would catch also stop a plan.
+      data:
+        options:
+          - text: "True"
+            correct: true
+          - text: "False"
+            feedback: Plan includes an implied validation step.
+      explanation: |
+        `terraform plan` includes an implied validation check, and in addition evaluates variable values, state and remote objects.
+    - kind: choice
+      prompt: |
+        Which command is best suited to run automatically on every save in an editor or as a fast pre-commit check that the configuration is valid, without touching state or remote APIs?
+      data:
+        options:
+          - text: "`terraform plan`"
+            feedback: Plan reads state and calls provider APIs, which needs credentials and is slower.
+          - text: "`terraform apply -refresh-only`"
+            feedback: This updates state; it is not a validation step.
+          - text: "`terraform show`"
+            feedback: "`show` displays state or a plan; it does not validate configuration."
+          - text: "`terraform validate`"
+            correct: true
+      explanation: |
+        The docs state that `terraform validate` is safe to run automatically, for example as a post-save check in an editor or a test step in CI.
+    - kind: choice
+      prompt: How do `terraform fmt` and `terraform validate` differ?
+      data:
+        options:
+          - text: "`fmt` checks provider APIs, `validate` checks style"
+            feedback: Neither command calls provider APIs.
+          - text: "`fmt` rewrites files to the canonical style, `validate` checks that the configuration is valid"
+            correct: true
+          - text: They are aliases of each other
+            feedback: They are separate commands with different purposes.
+      explanation: |
+        `fmt` only changes layout (indentation, alignment) and does not guarantee correctness. `validate` checks syntax and internal consistency but does not change files.

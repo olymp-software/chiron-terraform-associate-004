@@ -1,0 +1,224 @@
+version: 1
+type: quiz
+theory_blocks:
+  - kind: markdown
+    data:
+      content: |
+        # Explain how Terraform uses and manages state
+
+        This quiz covers why Terraform needs state (mapping to real objects, metadata,
+        performance, team syncing), where local state lives, state locking, sensitive data in
+        state, and the basic commands to inspect and modify state safely.
+
+        Docs:
+        - [Purpose of Terraform state](https://developer.hashicorp.com/terraform/language/state/purpose)
+        - [Manage resources in Terraform state](https://developer.hashicorp.com/terraform/tutorials/state/state-cli)
+        - [State](https://developer.hashicorp.com/terraform/language/state)
+data:
+  questions:
+    - kind: choice
+      prompt: |
+        Which are purposes of Terraform state? Select all that apply.
+      data:
+        multiple: true
+        options:
+          - text: Mapping resources in the configuration to real-world objects
+            correct: true
+          - text: Tracking metadata such as resource dependencies
+            correct: true
+          - text: Caching resource attributes to improve performance
+            correct: true
+          - text: Storing the source code of the configuration for rollback
+            feedback: State stores information about managed objects, not the configuration source code.
+      explanation: |
+        State maps configuration to real objects, records metadata (dependencies, last used provider
+        configuration), caches attribute values for performance and lets teams sync through remote state.
+
+    - kind: choice
+      prompt: |
+        With the default local backend, where does Terraform store state?
+      data:
+        multiple: false
+        options:
+          - text: "`.terraform/state.json`"
+            feedback: The `.terraform` directory holds providers and modules, not local state.
+          - text: "`terraform.tfstate` in the working directory, with the previous version in `terraform.tfstate.backup`"
+            correct: true
+          - text: "`.terraform.lock.hcl`"
+            feedback: The lock file records provider versions, not state.
+          - text: In HCP Terraform
+            feedback: HCP Terraform is used only when configured with a `cloud` block or the `remote` backend.
+      explanation: |
+        Local state is a JSON file named `terraform.tfstate` in the working directory; Terraform keeps a
+        backup of the previous state in `terraform.tfstate.backup`.
+
+    - kind: choice
+      prompt: |
+        Why doesn't Terraform rely on cloud tags instead of state to map resources to real objects?
+      data:
+        multiple: false
+        options:
+          - text: Tags are too slow to query
+            feedback: Performance is not the reason given.
+          - text: Tags cost extra money in most clouds
+            feedback: Cost is not the reason given.
+          - text: Not all resources and providers support tags
+            correct: true
+      explanation: |
+        HashiCorp considered tags but abandoned the idea because not every resource type or provider
+        supports them. State works uniformly for all providers.
+
+    - kind: choice
+      prompt: |
+        You remove a resource block from the configuration. How does Terraform know in which order to
+        destroy it relative to other resources?
+      data:
+        multiple: false
+        options:
+          - text: It uses the dependency information recorded in the state
+            correct: true
+          - text: It parses the deleted block from the Git history
+            feedback: Terraform does not read version control history.
+          - text: It destroys it last, after all other changes
+            feedback: Ordering is based on recorded dependencies, not a fixed rule.
+          - text: It asks the provider to calculate the order
+            feedback: Dependency ordering is Terraform Core's job, using the state.
+      explanation: |
+        Once a resource is gone from the configuration, its dependencies can only come from the state, so
+        Terraform stores dependency metadata there.
+
+    - kind: choice
+      prompt: |
+        True or false: a variable marked `sensitive = true` is stored encrypted in the state file.
+      data:
+        multiple: false
+        options:
+          - text: "True"
+            feedback: "`sensitive` only redacts values in CLI output and the UI; state still contains them in plain text."
+          - text: "False"
+            correct: true
+      explanation: |
+        `sensitive` hides values from output, but they are still written to state and plan files. Protect
+        state with a remote backend that encrypts it at rest and with access controls.
+
+    - kind: choice
+      prompt: |
+        Which practices does HashiCorp recommend for state used by a team? Select all that apply.
+      data:
+        multiple: true
+        options:
+          - text: Commit `terraform.tfstate` to Git so everyone has the latest copy
+            feedback: State in version control can leak secrets and has no locking.
+          - text: Store state in HCP Terraform or a remote backend
+            correct: true
+          - text: Use a backend that supports state locking
+            correct: true
+          - text: Edit the state file by hand when a resource is renamed
+            feedback: Manual edits are discouraged; use `terraform state` commands or `moved` blocks.
+      explanation: |
+        Remote state enables collaboration, encryption at rest and locking, which prevents concurrent runs
+        from corrupting state. State should not be kept in version control or edited by hand.
+
+    - kind: choice
+      prompt: |
+        A previous run crashed and left the state locked. Which command releases the lock, and what does it
+        need?
+      data:
+        multiple: false
+        options:
+          - text: "`terraform state rm`, with the resource address"
+            feedback: "`state rm` removes resources from state; it does not touch locks."
+          - text: "`terraform force-unlock`, with the lock ID"
+            correct: true
+          - text: "`terraform apply -lock=false`, with no arguments"
+            feedback: This skips locking for one run and is risky; it does not release the existing lock.
+      explanation: |
+        `terraform force-unlock LOCK_ID` manually releases a stuck lock. Use it only for your own lock;
+        unlocking someone else's run can cause multiple writers.
+
+    - kind: choice
+      prompt: |
+        What is the effect of `terraform state rm aws_instance.web`?
+      data:
+        multiple: false
+        options:
+          - text: Destroys the EC2 instance and removes it from state
+            feedback: "`state rm` never calls the provider to destroy anything."
+          - text: Removes the resource block from the configuration
+            feedback: "`terraform state` commands never change the configuration files."
+          - text: Marks the instance to be replaced on the next apply
+            feedback: That is what `terraform apply -replace` does.
+          - text: Terraform forgets the instance, but the real instance keeps running
+            correct: true
+      explanation: |
+        `state rm` only removes the binding from state; the object still exists and is no longer managed.
+        Since Terraform 1.7 a `removed` block with `lifecycle { destroy = false }` is the declarative alternative.
+
+    - kind: choice
+      prompt: |
+        Which command lists the addresses of all resources tracked in the current state?
+      data:
+        multiple: false
+        options:
+          - text: "`terraform state list`"
+            correct: true
+          - text: "`terraform state show`"
+            feedback: "`state show` shows the attributes of a single resource address."
+          - text: "`terraform providers`"
+            feedback: This shows provider requirements, not resources.
+          - text: "`terraform output`"
+            feedback: This prints output values, not resources.
+      explanation: |
+        `terraform state list` prints resource addresses from state; `terraform state show <address>` shows
+        the attributes of one resource, and `terraform show` prints the whole state in readable form.
+
+    - kind: choice
+      prompt: |
+        `terraform refresh` is deprecated. Which command is recommended to update state from real
+        infrastructure without changing any objects?
+      data:
+        multiple: false
+        options:
+          - text: "`terraform plan -refresh=false`"
+            feedback: This skips refreshing entirely.
+          - text: "`terraform state pull`"
+            feedback: "`state pull` downloads and prints the current state; it does not refresh it."
+          - text: "`terraform apply -refresh-only`"
+            correct: true
+      explanation: |
+        `terraform apply -refresh-only` shows detected drift and asks for confirmation before writing it to
+        state. `terraform refresh` is equivalent to `apply -refresh-only -auto-approve`.
+
+    - kind: choice
+      prompt: |
+        A large configuration makes plans slow because of API rate limits. What does
+        `terraform plan -refresh=false` do?
+      data:
+        multiple: false
+        options:
+          - text: Plans without querying providers for the current state of resources, trusting the cached state
+            correct: true
+          - text: Plans without reading the state file at all
+            feedback: State is still read; only the refresh against real infrastructure is skipped.
+          - text: Plans only the resources that changed in the configuration since the last apply
+            feedback: Targeting specific resources is done with `-target`.
+      explanation: |
+        By default Terraform refreshes all resources on every plan and apply. With `-refresh=false` it uses
+        the attribute values cached in state as the record of truth.
+
+    - kind: choice
+      prompt: |
+        An external tool needs to read resource data that Terraform manages. What is the recommended
+        approach?
+      data:
+        multiple: false
+        options:
+          - text: Parse `terraform.tfstate` directly, since its JSON format never changes
+            feedback: The state format can change between versions; parsing it directly needs ongoing maintenance.
+          - text: Use `terraform show -json` or `terraform output -json`
+            correct: true
+          - text: Read the files in `.terraform/providers`
+            feedback: That directory holds provider binaries, not resource data.
+      explanation: |
+        `terraform show -json` and `terraform output -json` produce JSON meant for external tools, unlike the
+        internal state format.

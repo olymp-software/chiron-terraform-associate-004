@@ -1,0 +1,200 @@
+version: 1
+type: quiz
+theory_blocks:
+  - kind: markdown
+    data:
+      content: |
+        # Use variables and outputs
+        This quiz covers input variables, outputs and local values: how root module variables get their
+        values and in which precedence, `.tfvars` files and `TF_VAR_` environment variables, and the
+        `validation`, `sensitive`, `nullable` and `ephemeral` arguments. It also covers output `sensitive`,
+        `depends_on` and when to use `locals`.
+
+        Docs:
+        - [Variables and outputs](https://developer.hashicorp.com/terraform/language/values)
+        - [variable block](https://developer.hashicorp.com/terraform/language/block/variable)
+        - [output block](https://developer.hashicorp.com/terraform/language/block/output)
+data:
+  questions:
+    - kind: choice
+      prompt: |
+        Variable `region` is set in `terraform.tfvars` to `us-east-1`, in `prod.auto.tfvars` to `us-west-2`,
+        in the environment as `TF_VAR_region=eu-west-1`, and on the command line with
+        `-var="region=eu-central-1"`. Which value does Terraform use?
+      data:
+        multiple: false
+        options:
+          - text: "`us-east-1`"
+            feedback: "`terraform.tfvars` is overridden by `*.auto.tfvars` and `-var`."
+          - text: "`us-west-2`"
+            feedback: "`*.auto.tfvars` files are overridden by `-var` and `-var-file` options."
+          - text: "`eu-west-1`"
+            feedback: Environment variables have the lowest precedence of all these sources.
+          - text: "`eu-central-1`"
+            correct: true
+      explanation: |
+        Later sources win: environment variables, then `terraform.tfvars`, then `terraform.tfvars.json`, then
+        `*.auto.tfvars`/`*.auto.tfvars.json` (lexical order), then `-var` and `-var-file` options in the order
+        given on the command line.
+    - kind: choice
+      prompt: |
+        Which environment variable sets the value of input variable `instance_type`?
+      data:
+        multiple: false
+        options:
+          - text: "`TF_INSTANCE_TYPE`"
+            feedback: The prefix must be `TF_VAR_`.
+          - text: "`TF_VAR_instance_type`"
+            correct: true
+          - text: "`TERRAFORM_VAR_INSTANCE_TYPE`"
+            feedback: The prefix is `TF_VAR_` and the name must match the variable name.
+          - text: "`VAR_instance_type`"
+            feedback: The prefix is `TF_VAR_`.
+      explanation: Terraform reads environment variables named `TF_VAR_` followed by the variable name.
+    - kind: choice
+      prompt: Which files does Terraform load automatically, without `-var-file`? Select all that apply.
+      data:
+        multiple: true
+        options:
+          - text: "`terraform.tfvars`"
+            correct: true
+          - text: "`terraform.tfvars.json`"
+            correct: true
+          - text: "`prod.auto.tfvars`"
+            correct: true
+          - text: "`prod.tfvars`"
+            feedback: Other `.tfvars` files need `-var-file=prod.tfvars`.
+          - text: "`variables.tf`"
+            feedback: "`.tf` files declare variables; they are configuration, not variable definition files."
+      explanation: |
+        Terraform automatically loads `terraform.tfvars`, `terraform.tfvars.json` and any `*.auto.tfvars` or
+        `*.auto.tfvars.json` files in the root module directory.
+    - kind: choice
+      prompt: |
+        What happens if you run `terraform plan` without supplying a value for this variable in a local
+        (non-automated) session?
+
+        ```hcl
+        variable "db_name" {
+          type = string
+        }
+        ```
+      data:
+        multiple: false
+        options:
+          - text: Terraform uses an empty string.
+            feedback: Without `default`, there is no implicit value.
+          - text: Terraform prompts for the value interactively.
+            correct: true
+          - text: Terraform sets it to `null` and continues.
+            feedback: A variable without default is required.
+          - text: Terraform fails during `terraform init`.
+            feedback: init doesn't evaluate variable values.
+      explanation: |
+        A variable without `default` is required. Terraform prompts for it interactively, or fails if input is
+        disabled (`-input=false`) and no value was provided.
+    - kind: choice
+      prompt: |
+        True or false: marking a variable with `sensitive = true` prevents its value from being stored in the
+        state file.
+      data:
+        multiple: false
+        options:
+          - text: "True"
+            feedback: Sensitive values are only redacted in CLI output; they are still written to state and plan files.
+          - text: "False"
+            correct: true
+      explanation: |
+        `sensitive` redacts the value in plan and apply output, but Terraform still records it in state. Use
+        `ephemeral` (Terraform 1.10+) to keep a value out of state and plan files.
+    - kind: choice
+      prompt: |
+        What does `nullable = false` do?
+
+        ```hcl
+        variable "env" {
+          type     = string
+          default  = "dev"
+          nullable = false
+        }
+        ```
+      data:
+        multiple: false
+        options:
+          - text: Passing `null` as the value causes an error.
+            feedback: With `nullable = false` and a default, `null` is replaced by the default.
+          - text: If a module caller passes `null`, Terraform uses the default `"dev"` instead.
+            correct: true
+          - text: The variable can never be omitted by callers.
+            feedback: It has a default, so it is optional.
+          - text: Nothing; `nullable` only applies to outputs.
+            feedback: "`nullable` is a variable argument."
+      explanation: |
+        With `nullable = false` the variable value is never null inside the module. If it has a default and
+        `null` is passed, the default is used; without a default, passing `null` is an error. The default for
+        `nullable` is `true`.
+    - kind: choice
+      prompt: |
+        A root module output references a sensitive variable. What happens if the output is not marked
+        `sensitive = true`?
+      data:
+        multiple: false
+        options:
+          - text: Terraform prints the value in plain text.
+            feedback: Terraform tracks sensitivity and refuses to expose it silently.
+          - text: Terraform returns an error asking you to mark the output `sensitive`.
+            correct: true
+          - text: Terraform automatically drops the output.
+            feedback: The output is not dropped; Terraform raises an error.
+      explanation: |
+        Terraform propagates sensitivity. An output whose value is derived from a sensitive value must be
+        declared with `sensitive = true`, otherwise plan fails with an error.
+    - kind: choice
+      prompt: How can you see the value of a sensitive output after apply? Select two.
+      data:
+        multiple: true
+        options:
+          - text: "`terraform output -json`"
+            correct: true
+          - text: "`terraform output -raw db_password`"
+            correct: true
+          - text: "`terraform output` without flags shows all values in plain text."
+            feedback: Without flags, sensitive outputs are shown as `<sensitive>`.
+          - text: Sensitive outputs are never retrievable.
+            feedback: They are stored in state and can be read with `-json` or `-raw`.
+      explanation: |
+        `terraform output -json` and `terraform output -raw <name>` print sensitive values in plain text,
+        because the values are stored in state.
+    - kind: choice
+      prompt: |
+        Which statements about `ephemeral = true` (Terraform 1.10+) are true? Select all that apply.
+      data:
+        multiple: true
+        options:
+          - text: Ephemeral variable values are not stored in plan or state files.
+            correct: true
+          - text: Root module outputs can be marked `ephemeral`.
+            feedback: Only child module outputs can be ephemeral.
+          - text: An ephemeral variable can be used in a provider configuration block.
+            correct: true
+          - text: An ephemeral variable can be assigned to any regular resource argument.
+            feedback: Ephemeral values are allowed only in ephemeral contexts such as write-only arguments, providers and provisioners.
+      explanation: |
+        Ephemeral values exist only during the run. They can be used in locals, other ephemeral variables,
+        ephemeral child module outputs, write-only arguments, ephemeral resources, provider, provisioner and
+        connection blocks.
+    - kind: choice
+      prompt: |
+        When should you use a `locals` block instead of an input variable?
+      data:
+        multiple: false
+        options:
+          - text: When a value should be set by the module caller.
+            feedback: That is the purpose of an input variable.
+          - text: When you need to export a value to the parent module.
+            feedback: That is the purpose of an output.
+          - text: When you want to name an expression computed inside the module, such as common tags, and reuse it.
+            correct: true
+      explanation: |
+        Local values assign a name to an expression so it can be reused within a module. Unlike variables,
+        callers cannot override them; they are referenced as `local.<NAME>`.

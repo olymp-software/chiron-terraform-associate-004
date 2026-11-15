@@ -1,0 +1,131 @@
+version: 1
+type: quiz
+theory_blocks:
+  - kind: markdown
+    data:
+      content: |
+        # Destroy Terraform-managed infrastructure
+
+        This quiz covers `terraform destroy`: its relation to `terraform apply -destroy`, previewing with `terraform plan -destroy`, targeting single resources, and how `prevent_destroy` protects critical objects.
+        Recall which objects destroy affects and the preferred way to remove a single resource permanently.
+
+        Docs:
+        - [terraform destroy](https://developer.hashicorp.com/terraform/cli/commands/destroy)
+        - [Destroy infrastructure tutorial](https://developer.hashicorp.com/terraform/tutorials/aws-get-started/aws-destroy)
+data:
+  questions:
+    - kind: choice
+      prompt: "`terraform destroy` is a convenience alias for which command?"
+      data:
+        options:
+          - text: "`terraform state rm -all`"
+            feedback: State removal forgets objects without destroying them.
+          - text: "`terraform plan -destroy`"
+            feedback: This only previews the destroy; it does not perform it.
+          - text: "`terraform apply -destroy`"
+            correct: true
+          - text: "`terraform apply -refresh-only`"
+            feedback: Refresh-only mode never destroys objects.
+      explanation: |
+        `terraform destroy` is a convenience alias for `terraform apply -destroy`, which runs apply in destroy planning mode.
+    - kind: choice
+      prompt: You want to see what would be destroyed before running `terraform destroy`. Which command shows this without changing anything?
+      data:
+        options:
+          - text: "`terraform plan -destroy`"
+            correct: true
+          - text: "`terraform destroy -dry-run`"
+            feedback: There is no `-dry-run` option.
+          - text: "`terraform show -destroy`"
+            feedback: "`show` has no destroy mode."
+      explanation: |
+        `terraform plan -destroy` creates a speculative destroy plan that shows the proposed destroy actions without executing them.
+    - kind: choice
+      prompt: |
+        True or false: `terraform destroy` asks for confirmation before destroying resources unless `-auto-approve` is used.
+      data:
+        options:
+          - text: "False"
+            feedback: Like apply in automatic plan mode, destroy shows the plan and waits for `yes`.
+          - text: "True"
+            correct: true
+      explanation: |
+        `terraform destroy` accepts most `apply` options, including `-auto-approve`. Without it, Terraform asks you to confirm by typing `yes`.
+    - kind: choice
+      prompt: |
+        You need to create a destroy plan, have it reviewed, and then execute exactly that plan. Which sequence works?
+      data:
+        options:
+          - text: "`terraform destroy -out=destroy.tfplan`, then `terraform destroy destroy.tfplan`"
+            feedback: "`terraform destroy` does not accept a plan file argument."
+          - text: "`terraform plan -destroy -out=destroy.tfplan`, then `terraform apply destroy.tfplan`"
+            correct: true
+          - text: "`terraform plan -out=destroy.tfplan`, then `terraform apply -destroy destroy.tfplan`"
+            feedback: Planning options cannot be added when applying a saved plan; destroy mode must be chosen at plan time.
+      explanation: |
+        Save a destroy-mode plan with `terraform plan -destroy -out=...` and apply the file with `terraform apply`. `terraform destroy` itself does not take a plan file.
+    - kind: choice
+      prompt: |
+        A web server is no longer needed and should be removed permanently, while the rest of the infrastructure stays. What is the recommended approach?
+      data:
+        options:
+          - text: Run `terraform destroy` and then re-apply everything else
+            feedback: This destroys the whole infrastructure unnecessarily.
+          - text: Delete the server in the cloud console
+            feedback: Terraform would recreate it on the next apply because it is still in configuration.
+          - text: Use `terraform destroy -target` for it every time you apply
+            feedback: "`-target` is for exceptional cases; the server would come back if it stays in configuration."
+          - text: Remove its resource block from the configuration and run `terraform apply`
+            correct: true
+      explanation: |
+        Removing a resource from configuration makes Terraform plan its destruction on the next apply. `terraform destroy -target=...` exists but is meant for exceptional situations.
+    - kind: choice
+      prompt: In which order does `terraform destroy` remove resources that depend on each other?
+      data:
+        options:
+          - text: In the same order they were created
+            feedback: A subnet cannot be deleted while instances still use it, so creation order would fail.
+          - text: In reverse dependency order, dependents first
+            correct: true
+          - text: In alphabetical order of resource addresses
+            feedback: Ordering comes from the dependency graph, not names.
+      explanation: |
+        Terraform uses the dependency graph: objects that depend on others (for example, an instance in a subnet) are destroyed before the objects they depend on.
+    - kind: choice
+      prompt: |
+        What happens when you run `terraform destroy` for a configuration containing this resource?
+
+        ```hcl
+        resource "aws_db_instance" "main" {
+          # ...
+
+          lifecycle {
+            prevent_destroy = true
+          }
+        }
+        ```
+      data:
+        options:
+          - text: Terraform destroys every resource except the database
+            feedback: Terraform does not silently skip it; the plan fails.
+          - text: Terraform destroys the database after an extra confirmation
+            feedback: There is no extra confirmation; destruction is rejected.
+          - text: Terraform returns an error because the plan would destroy a resource with `prevent_destroy`
+            correct: true
+      explanation: |
+        With `prevent_destroy = true`, Terraform rejects with an error any plan that would destroy the object. Remove the setting first if you really need to destroy it.
+    - kind: choice
+      prompt: Which objects can `terraform destroy` remove? Select all that apply.
+      data:
+        multiple: true
+        options:
+          - text: Resources tracked in the state of the current working directory and workspace
+            correct: true
+          - text: Resources created manually in the cloud console that are not in state
+            feedback: Terraform only manages objects recorded in its state.
+          - text: Resources managed by another workspace with its own state
+            feedback: Each workspace has separate state; destroy affects only the current one.
+          - text: Resources created by this configuration's modules
+            correct: true
+      explanation: |
+        Destroy plans removal of all remote objects tracked in the current state, including those created by child modules, leaving the state empty.

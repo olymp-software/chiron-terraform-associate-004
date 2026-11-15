@@ -1,0 +1,205 @@
+version: 1
+type: quiz
+theory_blocks:
+  - kind: markdown
+    data:
+      content: |
+        # Write dynamic configuration using expressions and functions
+        This quiz covers `for` expressions, splat expressions, the conditional operator, `dynamic` blocks,
+        `count` and `for_each`, and common built-in functions such as `lookup`, `merge`, `join`, `toset`,
+        `file` and `templatefile`. Remember that you can try any expression in `terraform console`, and that
+        Terraform has no user-defined functions.
+
+        Docs:
+        - [Functions](https://developer.hashicorp.com/terraform/language/functions)
+        - [Expressions](https://developer.hashicorp.com/terraform/language/expressions)
+        - [Perform dynamic operations with functions](https://developer.hashicorp.com/terraform/tutorials/configuration-language/functions)
+data:
+  questions:
+    - kind: choice
+      prompt: |
+        What is the result of this expression?
+
+        ```hcl
+        [for s in ["a", "b", "c"] : upper(s) if s != "b"]
+        ```
+      data:
+        multiple: false
+        options:
+          - text: "`[\"A\", \"B\", \"C\"]`"
+            feedback: The `if` clause filters out `"b"`.
+          - text: "`[\"A\", \"C\"]`"
+            correct: true
+          - text: "`{\"a\" = \"A\", \"c\" = \"C\"}`"
+            feedback: Square brackets produce a list; braces with `=>` produce a map.
+          - text: "`[\"a\", \"c\"]`"
+            feedback: "`upper()` is applied to each kept element."
+      explanation: A `for` expression in brackets produces a list; the optional `if` clause filters elements.
+    - kind: choice
+      prompt: |
+        Which expression returns the `id` of every instance of `aws_instance.web` created with `count`?
+      data:
+        multiple: false
+        options:
+          - text: "`aws_instance.web.*.ids`"
+            feedback: There is no `ids` attribute.
+          - text: "`aws_instance.web.id`"
+            feedback: With `count` you must select an instance or use a splat.
+          - text: "`aws_instance.web[*].id`"
+            correct: true
+          - text: "`all(aws_instance.web).id`"
+            feedback: There is no such function.
+      explanation: |
+        The splat expression `[*]` is shorthand for `[for i in aws_instance.web : i.id]`.
+    - kind: choice
+      prompt: |
+        What does this resource do?
+
+        ```hcl
+        resource "aws_eip" "this" {
+          count  = var.create_eip ? 1 : 0
+          domain = "vpc"
+        }
+        ```
+      data:
+        multiple: false
+        options:
+          - text: Always creates one EIP; `count` is ignored for booleans.
+            feedback: The conditional returns 1 or 0.
+          - text: Creates the EIP only when `var.create_eip` is true, otherwise none.
+            correct: true
+          - text: Fails because `count` can't use a conditional expression.
+            feedback: Conditional expressions are a common way to set `count`.
+      explanation: |
+        `condition ? true_val : false_val` returns one of two values. With `count = 0` Terraform creates no
+        instances, which makes the resource conditional.
+    - kind: choice
+      prompt: |
+        What does this `dynamic` block generate?
+
+        ```hcl
+        resource "aws_security_group" "web" {
+          name = "web"
+
+          dynamic "ingress" {
+            for_each = [80, 443]
+            content {
+              from_port   = ingress.value
+              to_port     = ingress.value
+              protocol    = "tcp"
+              cidr_blocks = ["0.0.0.0/0"]
+            }
+          }
+        }
+        ```
+      data:
+        multiple: false
+        options:
+          - text: Two security groups, one per port.
+            feedback: "`dynamic` generates nested blocks, not resources."
+          - text: One `ingress` block with both ports.
+            feedback: One nested block is generated per element.
+          - text: Two nested `ingress` blocks, for ports 80 and 443.
+            correct: true
+          - text: An error, because the iterator must be named `each`.
+            feedback: Inside `dynamic`, the iterator defaults to the block label (`ingress`).
+      explanation: |
+        A `dynamic` block generates one nested block per element of `for_each`. The temporary iterator is named
+        after the block label (here `ingress`) unless `iterator` is set.
+    - kind: choice
+      prompt: |
+        Which statements about `count` and `for_each` are true? Select all that apply.
+      data:
+        multiple: true
+        options:
+          - text: A resource can't use both `count` and `for_each`.
+            correct: true
+          - text: "`for_each` accepts a map or a set of strings."
+            correct: true
+          - text: "`for_each` accepts a list of strings directly."
+            feedback: Convert it with `toset()` first.
+          - text: Removing an element from the middle of a `for_each` set doesn't change the addresses of other instances.
+            correct: true
+          - text: "`for_each` keys may depend on attributes known only after apply."
+            feedback: Keys must be known at plan time.
+      explanation: |
+        `for_each` instances are keyed by stable strings, so removing one doesn't shift the others (unlike
+        `count` indexes). Keys must be known during plan, and `count` and `for_each` are mutually exclusive.
+    - kind: choice
+      prompt: What does `lookup({ a = "x", b = "y" }, "c", "z")` return?
+      data:
+        multiple: false
+        options:
+          - text: "`\"z\"`"
+            correct: true
+          - text: "`null`"
+            feedback: A default value is given as the third argument.
+          - text: An error because key `c` is missing.
+            feedback: The default is returned when the key is missing.
+          - text: "`\"y\"`"
+            feedback: "`lookup` doesn't return the last element."
+      explanation: "`lookup(map, key, default)` returns the value for `key`, or `default` if the key is absent."
+    - kind: choice
+      prompt: |
+        What is the result of `merge({ env = "dev", team = "a" }, { env = "prod" })`?
+      data:
+        multiple: false
+        options:
+          - text: "`{ env = \"dev\", team = \"a\" }`"
+            feedback: Later arguments take precedence.
+          - text: "`{ env = \"prod\" }`"
+            feedback: "`merge` keeps keys from all maps."
+          - text: An error because of the duplicate key.
+            feedback: Duplicate keys are allowed; the last one wins.
+          - text: "`{ env = \"prod\", team = \"a\" }`"
+            correct: true
+      explanation: |
+        `merge` combines maps or objects; for duplicate keys the value from the later argument wins.
+    - kind: choice
+      prompt: |
+        You need to render a user-data script from a file with variables substituted. Which function should you
+        use?
+      data:
+        multiple: false
+        options:
+          - text: "`file(\"${path.module}/init.sh\")`"
+            feedback: "`file` returns contents as-is, without template rendering."
+          - text: "`templatefile(\"${path.module}/init.tftpl\", { port = 8080 })`"
+            correct: true
+          - text: "`format(\"init.sh\", 8080)`"
+            feedback: "`format` formats a string, it doesn't read files."
+          - text: "`join(\"init.sh\", [8080])`"
+            feedback: "`join` concatenates list elements with a separator."
+      explanation: |
+        `templatefile(path, vars)` reads a file and renders it as a template with the given variables. Use
+        `path.module` to build paths relative to the module.
+    - kind: choice
+      prompt: |
+        True or false: you can define your own functions in HCL and call them in your configuration.
+      data:
+        multiple: false
+        options:
+          - text: "True"
+            feedback: The Terraform language has no user-defined functions.
+          - text: "False"
+            correct: true
+      explanation: |
+        Terraform only supports built-in functions (and, since 1.8, functions exported by providers, called as
+        `provider::<name>::<function>`). There is no syntax to declare functions in HCL.
+    - kind: choice
+      prompt: |
+        What is `terraform console` used for? Select two.
+      data:
+        multiple: true
+        options:
+          - text: Evaluating expressions and functions interactively, e.g. `join(",", ["a", "b"])`.
+            correct: true
+          - text: Inspecting values from the current state, such as resource attributes.
+            correct: true
+          - text: Editing the state file interactively.
+            feedback: The console is read-only; it doesn't modify state.
+          - text: Opening an SSH session to provisioned instances.
+            feedback: It's an expression evaluator, not a remote shell.
+      explanation: |
+        `terraform console` gives an interactive prompt to evaluate expressions against the configuration and
+        current state, which is useful for testing functions and inspecting values.

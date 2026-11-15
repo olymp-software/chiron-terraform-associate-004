@@ -1,0 +1,275 @@
+version: 1
+type: quiz
+theory_blocks:
+  - kind: markdown
+    data:
+      content: |
+        # Configure and use HCP Terraform integration
+
+        This quiz covers connecting the Terraform CLI to HCP Terraform: the `cloud` block
+        (`organization`, `hostname`, `workspaces` with `name`, `tags` or `project`), the
+        `TF_CLOUD_*` and `TF_WORKSPACE` environment variables, authenticating with
+        `terraform login` or `TF_TOKEN_*`, migrating existing state with `terraform init`,
+        and remote versus local execution.
+
+        Docs:
+        - [CLI integration](https://developer.hashicorp.com/terraform/cli/cloud)
+        - [cloud block settings](https://developer.hashicorp.com/terraform/cli/cloud/settings)
+        - [Migrate to HCP Terraform](https://developer.hashicorp.com/terraform/cloud-docs/migrate)
+        - [terraform login](https://developer.hashicorp.com/terraform/cli/commands/login)
+data:
+  questions:
+    - kind: choice
+      prompt: |
+        What does this configuration do after `terraform init`?
+
+        ```hcl
+        terraform {
+          cloud {
+            organization = "acme"
+
+            workspaces {
+              name = "networking-prod"
+            }
+          }
+        }
+        ```
+      data:
+        multiple: false
+        options:
+          - text: Stores only the state in HCP Terraform; plans always run locally
+            feedback: Where plans run depends on the workspace execution mode, which is Remote by default.
+          - text: Connects the working directory to the `networking-prod` workspace in the `acme` organization on `app.terraform.io`
+            correct: true
+          - text: Creates a CLI workspace named `networking-prod` in a local backend
+            feedback: The `cloud` block connects to HCP Terraform workspaces, not local CLI workspaces.
+          - text: Fails because `hostname` is required
+            feedback: "`hostname` is optional and defaults to `app.terraform.io`."
+      explanation: |
+        The `cloud` block in the `terraform` block connects the configuration to
+        HCP Terraform. With `name`, it uses that single workspace (creating it during
+        `terraform init` if it does not exist).
+    - kind: choice
+      prompt: |
+        Which `workspaces` configuration is **invalid**?
+      data:
+        multiple: false
+        options:
+          - text: |
+              ```hcl
+              workspaces {
+                tags = { app = "billing", env = "prod" }
+              }
+              ```
+            feedback: A map of tags is valid; Terraform uses all workspaces that have these tags.
+          - text: |
+              ```hcl
+              workspaces {
+                name    = "billing-prod"
+                project = "billing"
+              }
+              ```
+            feedback: "`project` can be combined with `name` or `tags`."
+          - text: |
+              ```hcl
+              workspaces {
+                name = "billing-prod"
+                tags = ["billing"]
+              }
+              ```
+            correct: true
+      explanation: |
+        `name` and `tags` are mutually exclusive. `name` selects one workspace; `tags`
+        (a map, or a legacy list of key-only tags) selects all matching workspaces, and
+        `project` limits the match to one project.
+    - kind: choice
+      prompt: |
+        Why does this configuration fail?
+
+        ```hcl
+        variable "org" {
+          type = string
+        }
+
+        terraform {
+          cloud {
+            organization = var.org
+            workspaces {
+              name = "app"
+            }
+          }
+        }
+        ```
+      data:
+        multiple: false
+        options:
+          - text: The `variable` block must be declared after the `terraform` block
+            feedback: Block order in Terraform files does not matter.
+          - text: "`organization` must be set through `-backend-config`"
+            feedback: "`-backend-config` is for `backend` blocks; use `TF_CLOUD_ORGANIZATION` instead."
+          - text: The `cloud` block cannot refer to named values such as input variables or locals
+            correct: true
+      explanation: |
+        Like backends, the `cloud` block is processed before variables are available, so
+        it cannot reference input variables, locals or data sources. Omit `organization`
+        and set `TF_CLOUD_ORGANIZATION` to supply it dynamically.
+    - kind: choice
+      prompt: |
+        You want to pick the organization and workspace in CI through environment
+        variables only. Which statements are true? Select all that apply.
+      data:
+        multiple: true
+        options:
+          - text: "`TF_CLOUD_ORGANIZATION` is used when `organization` is omitted from the `cloud` block"
+            correct: true
+          - text: "`TF_WORKSPACE` is used when `workspaces` is omitted, and the workspace must already exist"
+            correct: true
+          - text: You still need an (empty) `cloud` block in the configuration
+            correct: true
+          - text: Environment variables override values set in the `cloud` block
+            feedback: Values in the configuration take precedence over the matching environment variables.
+      explanation: |
+        `TF_CLOUD_ORGANIZATION`, `TF_CLOUD_HOSTNAME`, `TF_CLOUD_PROJECT` and `TF_WORKSPACE`
+        fill in omitted `cloud` block settings. HCP Terraform does not create a workspace
+        from `TF_WORKSPACE`, and an empty `cloud` block is still required.
+    - kind: choice
+      prompt: |
+        What does `terraform login` do when run without arguments?
+      data:
+        multiple: false
+        options:
+          - text: Opens a browser to obtain an API token for `app.terraform.io` and saves it in `credentials.tfrc.json`
+            correct: true
+          - text: Prompts for a username and password and stores them in `.terraformrc`
+            feedback: Terraform stores an API token, not a password.
+          - text: Creates a team token and prints it to the terminal
+            feedback: The command obtains a token for your user and stores it locally.
+          - text: Sets the `TF_TOKEN_app_terraform_io` variable in your shell profile
+            feedback: Terraform never edits your shell profile; it writes the CLI credentials file.
+      explanation: |
+        Without a hostname `terraform login` targets HCP Terraform at `app.terraform.io`.
+        By default it saves the token in plain text in a local CLI configuration file called
+        `credentials.tfrc.json` (the docs show it under `~/.terraform.d/` on macOS). It can
+        only be used interactively.
+    - kind: choice
+      prompt: |
+        A CI pipeline cannot open a browser for `terraform login`. Which environment
+        variable provides the HCP Terraform API token?
+      data:
+        multiple: false
+        options:
+          - text: "`TF_CLOUD_TOKEN`"
+            feedback: There is no such variable; tokens use the `TF_TOKEN_<hostname>` form.
+          - text: "`TF_TOKEN_app_terraform_io`"
+            correct: true
+          - text: "`TF_VAR_token`"
+            feedback: "`TF_VAR_` sets input variables, not CLI credentials."
+          - text: "`TFE_TOKEN_app.terraform.io`"
+            feedback: The prefix is `TF_TOKEN_` and dots in the hostname are encoded as underscores.
+      explanation: |
+        Credentials can be set as `TF_TOKEN_<hostname>` with periods replaced by
+        underscores, so `app.terraform.io` becomes `TF_TOKEN_app_terraform_io`.
+    - kind: choice
+      prompt: |
+        A project has state in a local `terraform.tfstate`. You add a `cloud` block for a
+        new workspace. How do you move the existing state to HCP Terraform?
+      data:
+        multiple: false
+        options:
+          - text: Run `terraform state push terraform.tfstate` before adding the `cloud` block
+            feedback: Without the `cloud` block there is no remote workspace to push to.
+          - text: Run `terraform init`; it detects the existing state and offers to migrate it to the workspace
+            correct: true
+          - text: Run `terraform apply -migrate-state`
+            feedback: "`apply` has no such flag; migration happens during `init`."
+          - text: Upload the file in the workspace UI under Variables
+            feedback: State is not a variable.
+      explanation: |
+        After adding or changing the `cloud` block, `terraform init` configures the
+        integration and asks whether to copy the existing state into the HCP Terraform
+        workspace. Migrate only into workspaces that have never performed a run.
+    - kind: choice
+      prompt: |
+        True or false: a configuration can contain both a `cloud` block and a
+        `backend "s3"` block, so state is stored in S3 while runs execute in HCP Terraform.
+      data:
+        multiple: false
+        options:
+          - text: "True"
+            feedback: The `cloud` block conflicts with a backend configuration.
+          - text: "False"
+            correct: true
+      explanation: |
+        You cannot configure a `cloud` block when the configuration also contains a
+        `backend` block. Only one `cloud` block is allowed per configuration.
+    - kind: choice
+      prompt: |
+        What is the minimum Terraform version that supports the `cloud` block?
+      data:
+        multiple: false
+        options:
+          - text: "0.13"
+            feedback: Older versions can only use the `remote` backend.
+          - text: "1.0"
+            feedback: The `cloud` block came one minor version later.
+          - text: "1.1"
+            correct: true
+          - text: "1.5"
+            feedback: The `cloud` block is available earlier than 1.5.
+      explanation: |
+        The CLI integration with the `cloud` block is available in Terraform 1.1.0 and
+        later; earlier versions use the `remote` backend.
+    - kind: choice
+      prompt: |
+        During a remote `terraform plan`, the CLI uploads your configuration directory.
+        Which statements are true? Select all that apply.
+      data:
+        multiple: true
+        options:
+          - text: A `.terraformignore` file at the root can exclude files from the upload
+            correct: true
+          - text: The `.git/` directory is excluded by default
+            correct: true
+          - text: The local `terraform.tfstate` is used as the run's state
+            feedback: Remote runs use the state stored in the workspace.
+          - text: All files are uploaded; there is no way to exclude any
+            feedback: Use `.terraformignore` with `.gitignore`-style rules.
+      explanation: |
+        A copy of the configuration directory is uploaded for remote plans and applies.
+        `.git/` and `.terraform/` (except `.terraform/modules`) are excluded by default,
+        and `.terraformignore` can exclude more.
+    - kind: choice
+      prompt: |
+        Your team wants HCP Terraform to keep the state, but `plan` and `apply` must run
+        on the team's own CI runners with their network access. Which workspace setting
+        meets this with the least effort?
+      data:
+        multiple: false
+        options:
+          - text: Execution mode Remote with auto-apply
+            feedback: Remote mode runs Terraform on HCP Terraform workers.
+          - text: Execution mode Local
+            correct: true
+          - text: Replace the `cloud` block with `backend "local"`
+            feedback: Then HCP Terraform would no longer store the state.
+      explanation: |
+        In Local execution mode HCP Terraform only stores state and Terraform runs on your
+        own machines or CI workers. (Agent mode also runs in your network, but uses
+        HCP Terraform agents and keeps runs managed by HCP Terraform.)
+    - kind: choice
+      prompt: |
+        The `cloud` block uses `tags` to match several workspaces. How do you switch
+        between them from the CLI?
+      data:
+        multiple: false
+        options:
+          - text: Edit the `cloud` block and run `terraform init -reconfigure` each time
+            feedback: With tags you can switch without changing the configuration.
+          - text: Use `terraform workspace select <full workspace name>`
+            correct: true
+          - text: Set `TF_CLOUD_PROJECT` to the workspace name
+            feedback: "`TF_CLOUD_PROJECT` sets the project, not the workspace."
+      explanation: |
+        With `tags`, `terraform workspace list` and `terraform workspace select` work
+        with the matching HCP Terraform workspaces, referred to by their full names (the
+        `cloud` block does not support `prefix`).

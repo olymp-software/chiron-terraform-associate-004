@@ -1,0 +1,234 @@
+version: 1
+type: quiz
+theory_blocks:
+  - kind: markdown
+    data:
+      content: |
+        # Describe the local backend
+
+        This quiz covers the default `local` backend: where Terraform keeps state when no backend is configured,
+        the `terraform.tfstate` and `terraform.tfstate.backup` files, the `path` and `workspace_dir` arguments,
+        and how CLI workspaces are stored in `terraform.tfstate.d`. Recall also why local state is a poor fit for teams.
+
+        **Docs**
+
+        - [Backend configuration](https://developer.hashicorp.com/terraform/language/backend)
+        - [Backend type: local](https://developer.hashicorp.com/terraform/language/backend/local)
+        - [State](https://developer.hashicorp.com/terraform/language/state)
+        - [Workspaces](https://developer.hashicorp.com/terraform/cli/workspaces)
+data:
+  questions:
+    - kind: choice
+      prompt: |
+        A configuration has no `backend` block and no `cloud` block. Which backend does Terraform use?
+      data:
+        multiple: false
+        options:
+          - text: "`s3`"
+            feedback: S3 is used only when you configure `backend "s3"` explicitly.
+          - text: "`local`"
+            correct: true
+          - text: "`remote`"
+            feedback: The `remote` backend must be configured explicitly.
+          - text: None, `terraform init` fails until a backend is configured
+            feedback: A backend is optional; Terraform falls back to a default one.
+      explanation: |
+        If you don't configure a backend, Terraform uses the `local` backend, which stores state as a file on disk.
+
+    - kind: choice
+      prompt: |
+        With the default local backend and the `default` workspace, where does Terraform write state?
+      data:
+        multiple: false
+        options:
+          - text: "`.terraform/terraform.tfstate`"
+            feedback: |
+              The `.terraform` directory holds providers, modules and backend settings, not the local backend state.
+          - text: "`~/.terraform.d/terraform.tfstate`"
+            feedback: "`~/.terraform.d` is a per-user CLI directory, not where state goes."
+          - text: "`terraform.tfstate.d/default/terraform.tfstate`"
+            feedback: "`terraform.tfstate.d` holds non-default workspaces only."
+          - text: "`terraform.tfstate` in the root module directory"
+            correct: true
+      explanation: |
+        The `path` argument of the local backend defaults to `terraform.tfstate`, relative to the root module.
+
+    - kind: choice
+      prompt: |
+        What is stored in `terraform.tfstate.backup`?
+      data:
+        multiple: false
+        options:
+          - text: The previous version of the state, before the last write
+            correct: true
+          - text: A copy of the configuration files from the last apply
+            feedback: State backups contain state, not configuration.
+          - text: The saved plan from the last `terraform plan -out`
+            feedback: Saved plans are written to the file you pass to `-out`.
+          - text: The state of all non-default workspaces
+            feedback: Non-default workspace states live in `terraform.tfstate.d`.
+      explanation: |
+        By default, local state is kept in `terraform.tfstate`, and the previous version is kept in
+        `terraform.tfstate.backup`.
+
+    - kind: choice
+      prompt: |
+        You use the local backend and run:
+
+        ```shell
+        terraform workspace new dev
+        terraform apply
+        ```
+
+        Where is the state for the `dev` workspace stored?
+      data:
+        multiple: false
+        options:
+          - text: "`terraform.tfstate`, in a separate section for `dev`"
+            feedback: Each workspace has its own state file; they are not merged into one file.
+          - text: "`terraform.tfstate.d/dev/terraform.tfstate`"
+            correct: true
+          - text: "`dev.tfstate` next to `terraform.tfstate`"
+            feedback: Terraform does not name workspace state files after the workspace in the root directory.
+          - text: "`.terraform/workspaces/dev.tfstate`"
+            feedback: The `.terraform` directory does not hold workspace state.
+      explanation: |
+        With local state, Terraform stores the states of non-default workspaces in a directory called
+        `terraform.tfstate.d`, one subdirectory per workspace. The `default` workspace keeps using `terraform.tfstate`.
+
+    - kind: choice
+      prompt: |
+        What does this configuration do?
+
+        ```hcl
+        terraform {
+          backend "local" {
+            path = "state/network.tfstate"
+          }
+        }
+        ```
+      data:
+        multiple: false
+        options:
+          - text: Stores state in a remote server at the URL `state/network.tfstate`
+            feedback: The local backend only writes to the local filesystem.
+          - text: Reads state from `state/network.tfstate` but still writes `terraform.tfstate`
+            feedback: "`path` controls both reading and writing state for the local backend."
+          - text: Stores state in `state/network.tfstate`, relative to the root module
+            correct: true
+          - text: Fails, because the local backend does not accept arguments
+            feedback: The local backend accepts the optional `path` and `workspace_dir` arguments.
+      explanation: |
+        The optional `path` argument sets the path to the state file. It defaults to `terraform.tfstate`,
+        relative to the root module.
+
+    - kind: choice
+      prompt: |
+        What does the `workspace_dir` argument of the local backend configure?
+      data:
+        multiple: false
+        options:
+          - text: The directory where Terraform downloads providers
+            feedback: Providers go to `.terraform/providers` (or a plugin cache), unrelated to the backend.
+          - text: The path where the states of non-default workspaces are stored
+            correct: true
+          - text: The working directory Terraform switches to before running
+            feedback: That is the global `-chdir` option, not a backend argument.
+          - text: The directory for the `default` workspace state
+            feedback: The `default` workspace uses `path` (default `terraform.tfstate`).
+      explanation: |
+        `workspace_dir` is the path to non-default workspaces; by default they are kept in `terraform.tfstate.d`.
+
+    - kind: choice
+      prompt: |
+        True or false: the local backend supports state locking.
+      data:
+        multiple: false
+        options:
+          - text: "True"
+            correct: true
+          - text: "False"
+            feedback: The local backend does lock its state file, using system APIs.
+      explanation: |
+        The local backend stores state on the local filesystem, locks it using system APIs and performs
+        operations locally.
+
+    - kind: choice
+      prompt: |
+        Which statements about local state are true? Select all that apply.
+      data:
+        multiple: true
+        options:
+          - text: State is a JSON file that can contain sensitive values in plain text
+            correct: true
+          - text: Committing `terraform.tfstate` to version control is the recommended way to share it with a team
+            feedback: |
+              Storing state in version control is discouraged: it can lead to data loss or exposure of secrets.
+          - text: Local state makes collaboration harder; a remote backend or HCP Terraform is recommended for teams
+            correct: true
+          - text: You should edit `terraform.tfstate` by hand to rename resources
+            feedback: Don't edit state directly; use `moved` blocks or the `terraform state` commands.
+      explanation: |
+        State is a JSON file that you should not edit directly. Local storage makes collaboration harder and
+        risks losing state, and storing state in version control can expose secrets, so HashiCorp recommends
+        HCP Terraform or a remote backend for teams.
+
+    - kind: choice
+      prompt: |
+        What is the name of the workspace every initialized working directory starts with?
+      data:
+        multiple: false
+        options:
+          - text: "`main`"
+            feedback: There is no `main` workspace by default.
+          - text: "`local`"
+            feedback: "`local` is the name of the default backend, not a workspace."
+          - text: "`dev`"
+            feedback: Workspaces like `dev` must be created with `terraform workspace new`.
+          - text: "`default`"
+            correct: true
+      explanation: |
+        Every initialized working directory starts with one workspace named `default`. It cannot be deleted.
+
+    - kind: choice
+      prompt: |
+        Your configuration used an `s3` backend. You delete the `backend` block and run `terraform init`.
+        What happens?
+      data:
+        multiple: false
+        options:
+          - text: Terraform detects the change and offers to migrate the state to the default `local` backend
+            correct: true
+          - text: Terraform deletes the state in S3 and starts with an empty local state
+            feedback: Terraform never deletes the old state; it offers to copy it.
+          - text: Nothing; Terraform keeps using S3 until the `.terraform` directory is removed
+            feedback: Terraform compares the configuration with the saved backend settings and detects the change.
+          - text: Terraform refuses, because a backend cannot be removed once configured
+            feedback: You can change or remove a backend at any time and reinitialize.
+      explanation: |
+        To unconfigure a backend, remove the `backend` block and reinitialize. Terraform then offers to migrate
+        the state to the default `local` backend. Back up the state before migrating.
+
+    - kind: choice
+      prompt: |
+        True or false: the `terraform_remote_state` data source can read outputs from another configuration
+        that uses the local backend.
+      data:
+        multiple: false
+        options:
+          - text: "False"
+            feedback: |
+              `terraform_remote_state` supports `backend = "local"` with a `path` in `config`.
+          - text: "True"
+            correct: true
+      explanation: |
+        Example from the docs:
+
+        ```hcl
+        data "terraform_remote_state" "foo" {
+          backend = "local"
+          config = {
+            path = "${path.module}/../../terraform.tfstate"
+          }
+        }
+        ```

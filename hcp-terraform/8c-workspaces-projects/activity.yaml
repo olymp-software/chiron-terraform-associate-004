@@ -1,0 +1,211 @@
+version: 1
+type: quiz
+theory_blocks:
+  - kind: markdown
+    data:
+      content: |
+        # Describe how to organize and use HCP Terraform workspaces and projects
+
+        This quiz covers the organization → project → workspace hierarchy, how HCP
+        Terraform workspaces differ from Terraform CLI workspaces, run triggers between
+        workspaces, variable sets scoped to the organization, projects or workspaces, and
+        the precedence rules that decide which variable value a run uses.
+
+        Docs:
+        - [Projects](https://developer.hashicorp.com/terraform/cloud-docs/projects)
+        - [Run triggers](https://developer.hashicorp.com/terraform/cloud-docs/workspaces/settings/run-triggers)
+        - [Managing variables](https://developer.hashicorp.com/terraform/cloud-docs/workspaces/variables/managing-variables)
+        - [Variables](https://developer.hashicorp.com/terraform/cloud-docs/workspaces/variables)
+data:
+  questions:
+    - kind: choice
+      prompt: |
+        Which hierarchy correctly describes how HCP Terraform organizes resources?
+      data:
+        multiple: false
+        options:
+          - text: Workspace → Project → Organization
+            feedback: The order is reversed; the organization is the top level.
+          - text: Organization → Workspace → Project
+            feedback: Projects group workspaces, not the other way round.
+          - text: Organization → Project → Workspace
+            correct: true
+          - text: Project → Organization → Workspace
+            feedback: An organization contains projects.
+      explanation: |
+        An organization contains projects, and every workspace belongs to exactly one
+        project. Projects group related workspaces and scope team access to them.
+    - kind: choice
+      prompt: |
+        Which statements about projects are true? Select all that apply.
+      data:
+        multiple: true
+        options:
+          - text: Every workspace belongs to exactly one project
+            correct: true
+          - text: A workspace can belong to several projects to share access rules
+            feedback: A workspace or Stack must belong to exactly one project.
+          - text: Workspaces created without a project go to the organization's Default Project
+            correct: true
+          - text: The Default Project can be renamed but not deleted
+            correct: true
+      explanation: |
+        All workspaces belong to the Default Project unless you choose another one. You can
+        move a workspace to a different project later; the Default Project can be renamed
+        but cannot be deleted.
+    - kind: choice
+      prompt: |
+        What is the main way projects simplify access control?
+      data:
+        multiple: false
+        options:
+          - text: Team permissions granted on a project apply to all workspaces in that project
+            correct: true
+          - text: Projects replace teams, so permissions are granted to projects directly
+            feedback: Permissions are still granted to teams; a project is the scope they apply to.
+          - text: Projects encrypt the state of their workspaces with a separate key
+            feedback: Projects are an organizational and access boundary, not an encryption feature.
+      explanation: |
+        Each project has its own permission set that grants teams access to all
+        workspaces (and Stacks) in it, instead of configuring access workspace by
+        workspace.
+    - kind: choice
+      prompt: |
+        How does an HCP Terraform workspace differ from a Terraform CLI workspace
+        (`terraform workspace new dev`) used with a local backend?
+      data:
+        multiple: false
+        options:
+          - text: They are the same concept; HCP Terraform just shows CLI workspaces in its UI
+            feedback: HCP Terraform workspaces hold much more than an extra state file.
+          - text: An HCP Terraform workspace acts like a separate working directory with its own configuration, variables, state, run history and permissions; a CLI workspace is only another state for the same directory
+            correct: true
+          - text: A CLI workspace has its own variables and access controls, while an HCP Terraform workspace only stores state
+            feedback: It is the other way round.
+      explanation: |
+        HCP Terraform workspaces are required and are the unit of configuration,
+        variables, state, run history and role-based access. CLI workspaces are optional
+        and let one working directory keep several state files.
+    - kind: choice
+      prompt: |
+        The `app` workspace reads outputs of the `network` workspace. You want a run in
+        `app` to be queued whenever `network` changes. Which feature should you configure?
+      data:
+        multiple: false
+        options:
+          - text: A notification on the `network` workspace
+            feedback: Notifications send messages (Slack, email, webhooks); they do not queue runs.
+          - text: A variable set shared by both workspaces
+            feedback: Variable sets share variables, they do not connect runs.
+          - text: A run trigger on `app` with `network` as a source workspace
+            correct: true
+      explanation: |
+        A run trigger connects a workspace to source workspaces in the same organization.
+        After a source run applies successfully, a new run is queued in the connected
+        workspace.
+    - kind: choice
+      prompt: |
+        Which statements about run triggers are true? Select all that apply.
+      data:
+        multiple: true
+        options:
+          - text: A workspace can have up to 20 source workspaces
+            correct: true
+          - text: A run is queued only after a source run applies successfully
+            correct: true
+          - text: Triggered runs always apply automatically
+            feedback: They auto-apply only if the separate "Auto-apply run triggers" setting is enabled.
+          - text: Source workspaces can be in another organization
+            feedback: Run triggers connect workspaces within the same organization.
+      explanation: |
+        Each workspace can connect to up to 20 source workspaces in its organization. Runs
+        from triggers need confirmation unless "Auto-apply run triggers" is enabled.
+    - kind: choice
+      prompt: |
+        You need the same cloud credentials in every current and future workspace of the
+        `payments` project, but not in other projects. What should you create?
+      data:
+        multiple: false
+        options:
+          - text: A global variable set
+            feedback: A global set applies to every workspace in the organization, not just one project.
+          - text: A variable set scoped to the `payments` project
+            correct: true
+          - text: Workspace variables in each existing workspace
+            feedback: This repeats the values and misses workspaces created later.
+          - text: A run trigger from a workspace that holds the credentials
+            feedback: Run triggers queue runs; they do not share variables.
+      explanation: |
+        A project-scoped variable set applies to all current and future workspaces in that
+        project. Global sets apply to the whole organization, and workspace-scoped sets
+        only to the selected workspaces.
+    - kind: choice
+      prompt: |
+        The key `region` is defined in a global variable set as `us-east-1` and as a
+        workspace-specific variable as `eu-west-1`. Neither is a priority variable set.
+        Which value does a run use?
+      data:
+        multiple: false
+        options:
+          - text: "`us-east-1`, because organization-wide values win"
+            feedback: Global variable sets have the lowest precedence among variable sets.
+          - text: "`eu-west-1`, because workspace-specific variables override variable sets"
+            correct: true
+          - text: The run fails because of the conflicting key
+            feedback: Conflicts between scopes are resolved by precedence, not errors.
+      explanation: |
+        Workspace-specific variables override variable sets with the same key, and more
+        specific variable sets override broader ones (workspace-scoped over project-scoped
+        over global).
+    - kind: choice
+      prompt: |
+        In a CLI-driven workspace, `instance_count` is set as a workspace variable to `2`.
+        You run:
+
+        ```shell
+        terraform apply -var="instance_count=5"
+        ```
+
+        Which value does the run use?
+      data:
+        multiple: false
+        options:
+          - text: "`2`"
+            feedback: Run-specific values from `-var` override workspace variables with the same key.
+          - text: "`5`"
+            correct: true
+          - text: The run fails because `-var` is not supported with HCP Terraform
+            feedback: Since Terraform 1.1 the CLI integration passes `-var` and `-var-file` values to the run.
+      explanation: |
+        Values set with `-var`, `-var-file` or `TF_VAR_` environment variables are
+        run-specific and overwrite workspace-specific and variable set variables with the
+        same key (unless a priority variable set defines it).
+    - kind: choice
+      prompt: |
+        True or false: a value from a **priority** global variable set overrides a value
+        for the same key passed with `-var` on the command line.
+      data:
+        multiple: false
+        options:
+          - text: "True"
+            correct: true
+          - text: "False"
+            feedback: Priority variable sets sit above command-line variables in the precedence order.
+      explanation: |
+        Priority variable sets override all more specific scopes, including run-specific
+        `-var` values. They still cannot stop someone from hardcoding a value in the
+        configuration itself.
+    - kind: choice
+      prompt: |
+        A key is defined both in a committed `prod.auto.tfvars` file and as a workspace
+        Terraform variable. Which value wins?
+      data:
+        multiple: false
+        options:
+          - text: The `.auto.tfvars` value, because it is part of the configuration
+            feedback: "`*.auto.tfvars` files are overridden by workspace and CLI variables."
+          - text: The workspace variable
+            correct: true
+      explanation: |
+        In HCP Terraform, `*.auto.tfvars` and `terraform.tfvars` files have the lowest
+        precedence; workspace variables, variable sets and CLI variables override them.

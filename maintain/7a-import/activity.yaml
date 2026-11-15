@@ -1,0 +1,276 @@
+version: 1
+type: quiz
+theory_blocks:
+  - kind: markdown
+    data:
+      content: |
+        # Import existing infrastructure into your Terraform workspace
+
+        This quiz covers the two ways to bring existing objects under Terraform management:
+        the configuration-driven `import` block (reviewed in `terraform plan`, performed by
+        `terraform apply`) and the legacy `terraform import` CLI command, which only writes state.
+        Recall the `to` / `id` / `provider` / `for_each` arguments, generating configuration with
+        `terraform plan -generate-config-out`, and resource addresses for modules, `count` and `for_each`.
+
+        **Docs**
+
+        - [terraform import command](https://developer.hashicorp.com/terraform/cli/commands/import)
+        - [Import existing resources](https://developer.hashicorp.com/terraform/language/import)
+        - [Generate configuration](https://developer.hashicorp.com/terraform/language/import/generating-configuration)
+        - [Tutorial: Import Terraform configuration](https://developer.hashicorp.com/terraform/tutorials/state/state-import)
+data:
+  questions:
+    - kind: choice
+      prompt: |
+        Your team wants imports to be reviewed in a plan and executed by a CI/CD pipeline,
+        just like any other change. Which approach should you use?
+      data:
+        multiple: false
+        options:
+          - text: Run `terraform import` on a workstation and commit the updated state file
+            feedback: |
+              The CLI command changes state immediately, without a plan to review, and is
+              not part of the normal plan/apply workflow.
+          - text: Add an `import` block to the configuration and run `terraform plan` and `terraform apply`
+            correct: true
+          - text: Edit the state file by hand and push it with `terraform state push`
+            feedback: Hand-editing state is error-prone and is not an import workflow.
+          - text: Run `terraform refresh` so Terraform discovers the existing object
+            feedback: Refresh only updates objects already tracked in state; it never adopts new ones.
+      explanation: |
+        With an `import` block, the import is previewed by `terraform plan` and performed by
+        `terraform apply`, which makes it safe to automate in CI/CD. The docs recommend it over
+        the `terraform import` command.
+
+    - kind: choice
+      prompt: |
+        True or false: running `terraform import aws_instance.web i-0abc123` writes a matching
+        `resource "aws_instance" "web"` block into your configuration.
+      data:
+        options:
+          - text: "True"
+            feedback: |
+              The CLI command only writes to state. It never generates configuration.
+          - text: "False"
+            correct: true
+      explanation: |
+        "Importing via the CLI does *not* generate configuration." The `terraform import`
+        command can only import resources into the state.
+
+    - kind: choice
+      prompt: |
+        You are about to run:
+
+        ```shell
+        terraform import aws_instance.web i-0abc123
+        ```
+
+        What must you do **before** running it?
+      data:
+        options:
+          - text: Run `terraform plan -generate-config-out=web.tf`
+            feedback: Configuration generation works with `import` blocks, not with the CLI command.
+          - text: Delete any existing state file so the import starts clean
+            feedback: That would make Terraform forget every resource it already manages.
+          - text: Write a `resource "aws_instance" "web"` block in the configuration
+            correct: true
+          - text: Nothing; Terraform creates the resource block automatically
+            feedback: The CLI command never writes configuration.
+      explanation: |
+        Before you run `terraform import`, you must manually write a `resource` block for the
+        object, because the command only binds the existing object to that address in state.
+
+    - kind: choice
+      prompt: |
+        You have written only this `import` block and no `resource` block:
+
+        ```hcl
+        import {
+          to = aws_instance.web
+          id = "i-0abc123"
+        }
+        ```
+
+        Which command produces a draft `resource` block for you?
+      data:
+        options:
+          - text: "`terraform import -generate-config-out=generated.tf`"
+            feedback: The `terraform import` command never generates configuration.
+          - text: "`terraform validate -generate-config-out=generated.tf`"
+            feedback: "`validate` only checks configuration; it has no such option."
+          - text: "`terraform fmt -generate-config-out=generated.tf`"
+            feedback: "`fmt` only rewrites formatting of existing files."
+          - text: "`terraform plan -generate-config-out=generated.tf`"
+            correct: true
+      explanation: |
+        `terraform plan -generate-config-out=<path>` writes configuration for `import` targets
+        that are not yet in your configuration, and shows the plan for the import.
+
+    - kind: choice
+      prompt: |
+        You run `terraform plan -generate-config-out=main.tf`, but `main.tf` already exists
+        in the working directory. What happens?
+      data:
+        options:
+          - text: Terraform returns an error
+            correct: true
+          - text: Terraform appends the generated blocks to `main.tf`
+            feedback: Terraform does not append; the path must be a new file.
+          - text: Terraform overwrites `main.tf` with the generated blocks
+            feedback: Terraform never overwrites an existing file with generated configuration.
+          - text: Terraform writes to `main.tf.generated` instead
+            feedback: There is no such fallback file name.
+      explanation: |
+        The docs warn: "Do not supply a path to an existing file, or Terraform throws an error."
+        Always pass a new file path.
+
+    - kind: choice
+      prompt: |
+        What does this configuration do on the next `terraform apply`?
+
+        ```hcl
+        locals {
+          buckets = {
+            "staging" = "bucket-staging"
+            "uat"     = "bucket-uat"
+            "prod"    = "bucket-prod"
+          }
+        }
+
+        import {
+          for_each = local.buckets
+          to       = aws_s3_bucket.this[each.key]
+          id       = each.value
+        }
+
+        resource "aws_s3_bucket" "this" {
+          for_each = local.buckets
+          bucket   = each.value
+        }
+        ```
+      data:
+        options:
+          - text: It fails, because `import` blocks cannot use `for_each`
+            feedback: "`import` blocks accept the `for_each` meta-argument with a map or a set of strings."
+          - text: It creates three new buckets and then imports them
+            feedback: Import adopts existing objects; it does not create them.
+          - text: |
+              It imports the three existing buckets into `aws_s3_bucket.this["staging"]`,
+              `aws_s3_bucket.this["uat"]` and `aws_s3_bucket.this["prod"]`
+            correct: true
+          - text: It imports only the first bucket; you need one `import` block per bucket
+            feedback: With `for_each`, one `import` block covers every element of the map.
+      explanation: |
+        `for_each` in an `import` block imports similar resources without writing a separate block
+        for each one; `each.key` and `each.value` build the address and the ID.
+
+    - kind: choice
+      prompt: |
+        Which two arguments make up a basic `import` block? Select two.
+      data:
+        multiple: true
+        options:
+          - text: "`to`"
+            correct: true
+          - text: "`source`"
+            feedback: "`source` is a `module` block argument."
+          - text: "`id`"
+            correct: true
+          - text: "`resource_type`"
+            feedback: The resource type is part of the `to` address, not a separate argument.
+      explanation: |
+        `to` is the resource address in Terraform, and `id` is the provider-specific identifier
+        of the existing object. Optional arguments include `provider` and `for_each`.
+
+    - kind: choice
+      prompt: |
+        True or false: after `terraform apply` successfully imports a resource, you must delete
+        the `import` block, otherwise the next apply tries to import the resource again.
+      data:
+        options:
+          - text: "True"
+            feedback: |
+              Once the resource is in state, the next plan does not generate another import,
+              so leaving the block is harmless.
+          - text: "False"
+            correct: true
+      explanation: |
+        Importing into the same address again has no effect. You may remove `import` blocks
+        after importing, but the docs recommend keeping them as a record of where the resource came from.
+
+    - kind: choice
+      prompt: |
+        An existing EC2 instance must be managed by the `aws_instance.example` resource
+        declared inside the child module called `instances`. Which `to` address is correct?
+      data:
+        options:
+          - text: "`instances.aws_instance.example`"
+            feedback: Module addresses start with the `module.` prefix.
+          - text: "`module.instances.aws_instance.example`"
+            correct: true
+          - text: "`aws_instance.instances.example`"
+            feedback: This is not a valid resource address.
+          - text: "`aws_instance.example`"
+            feedback: This addresses a resource in the root module, not in the child module.
+      explanation: |
+        To import into a resource inside a module, prefix the address with `module.<NAME>`,
+        for example `module.instances.aws_instance.example`.
+
+    - kind: choice
+      prompt: |
+        Which statements about configuration generated by `-generate-config-out` are true?
+        Select all that apply.
+      data:
+        multiple: true
+        options:
+          - text: It may include many arguments with default or empty values that you should prune
+            correct: true
+          - text: It automatically replaces hard-coded values with references to your variables and other resources
+            feedback: |
+              Import does not detect relationships between resources; you add references
+              yourself when editing the generated code.
+          - text: You should review and edit it before running `terraform apply`
+            correct: true
+          - text: For complex resources it may contain conflicting arguments that you must fix before planning again
+            correct: true
+      explanation: |
+        Generated code takes attribute values from the provider and is a starting point:
+        prune it, fix errors such as "Conflicting configuration arguments", add references,
+        then plan again and apply. The feature is experimental.
+
+    - kind: choice
+      prompt: |
+        On Linux, which command correctly imports an existing instance into a resource
+        that uses `for_each`, at the key `example`?
+      data:
+        options:
+          - text: "`terraform import aws_instance.baz[example] i-abcd1234`"
+            feedback: "`for_each` keys are strings and must be written in double quotes."
+          - text: "`terraform import aws_instance.baz.example i-abcd1234`"
+            feedback: Instance keys go in square brackets, not after a dot.
+          - text: "`terraform import 'aws_instance.baz[\"example\"]' i-abcd1234`"
+            correct: true
+      explanation: |
+        A `for_each` instance address uses the string key in brackets, `aws_instance.baz["example"]`.
+        On Linux, macOS and other UNIX shells, wrap the whole address in single quotes.
+
+    - kind: choice
+      prompt: |
+        You added an `import` block and a minimal `resource` block. `terraform plan` shows the
+        resource will be imported but also updated in place, which you did not intend.
+        What should you do?
+      data:
+        options:
+          - text: Apply anyway; Terraform never changes imported resources during the first apply
+            feedback: |
+              Apply performs every change in the plan, including the update. Changes made
+              during import can even be destructive.
+          - text: Update the `resource` block to match the real settings, then run `terraform plan` again
+            correct: true
+          - text: Switch to `terraform import`, which never shows changes
+            feedback: |
+              The CLI command just skips the review step; the next plan would propose
+              the same update.
+      explanation: |
+        Include arguments with non-default values in the `resource` block. If the plan shows
+        unexpected changes, update the configuration to match the intended settings, then plan again.

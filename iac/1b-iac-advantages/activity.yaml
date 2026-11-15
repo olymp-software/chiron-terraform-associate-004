@@ -1,0 +1,198 @@
+version: 1
+type: quiz
+theory_blocks:
+  - kind: markdown
+    data:
+      content: |
+        # Describe the advantages of IaC patterns
+        This quiz covers why teams adopt IaC and Terraform instead of manual provisioning.
+        Recall: consistency and repeatability, version control and code review, reuse through modules,
+        a plan to preview changes before applying them, state to track resources, declarative automation
+        with dependency handling, and team collaboration through remote state and HCP Terraform.
+
+        Docs:
+        - [Why Terraform?](https://developer.hashicorp.com/terraform/intro#why-terraform)
+        - [What is Infrastructure as Code with Terraform?](https://developer.hashicorp.com/terraform/tutorials/aws-get-started/infrastructure-as-code)
+data:
+  questions:
+    - kind: choice
+      prompt: |
+        Which are advantages of managing infrastructure as code compared to manual provisioning
+        through a web console? Select all that apply.
+      data:
+        multiple: true
+        options:
+          - text: Infrastructure can be provisioned in a consistent and repeatable way
+            correct: true
+          - text: Configuration can be versioned, reviewed and shared like application code
+            correct: true
+          - text: Infrastructure changes no longer need any testing or review
+            feedback: IaC makes review easier, it does not remove the need for it.
+          - text: Configurations can be reused to create identical environments
+            correct: true
+      explanation: |
+        IaC lets you build, change and manage infrastructure in a safe, consistent and repeatable way,
+        and the configuration files can be versioned, reused and shared.
+
+    - kind: choice
+      prompt: |
+        A team creates development, staging and production environments by hand, and they keep drifting
+        apart. Which IaC benefit addresses this most directly?
+      data:
+        multiple: false
+        options:
+          - text: Lower cloud provider prices
+            feedback: IaC does not change provider pricing.
+          - text: Faster network throughput
+            feedback: IaC does not affect the performance of the infrastructure itself.
+          - text: Consistency, because every environment is created from the same reviewed configuration
+            correct: true
+      explanation: |
+        Creating environments from the same code removes manual, error-prone steps, so the
+        environments are consistent and repeatable.
+
+    - kind: choice
+      prompt: |
+        How does Terraform help you avoid unexpected infrastructure changes?
+      data:
+        multiple: false
+        options:
+          - text: It locks the cloud console so nobody can make manual changes.
+            feedback: Terraform does not control access to the provider's console.
+          - text: It generates an execution plan and asks for approval before modifying infrastructure.
+            correct: true
+          - text: It applies changes only at night.
+            feedback: Terraform has no such schedule; you review the plan instead.
+          - text: It automatically reverts every change after 24 hours.
+            feedback: Terraform does not revert changes on a timer.
+      explanation: |
+        Terraform generates a plan and prompts for your approval before modifying infrastructure,
+        so you can review exactly what will be created, updated or destroyed.
+
+    - kind: choice
+      prompt: |
+        Which Terraform feature lets you package a collection of resources into a reusable,
+        standardized component?
+      data:
+        multiple: false
+        options:
+          - text: Provisioners
+            feedback: Provisioners run actions on resources; they are a last resort, not a packaging mechanism.
+          - text: Workspaces
+            feedback: Workspaces separate state for the same configuration.
+          - text: State file
+            feedback: State tracks real infrastructure; it is not reusable code.
+          - text: Modules
+            correct: true
+      explanation: |
+        Modules are reusable configuration components that define collections of infrastructure. You can
+        use publicly available modules from the Terraform Registry or write your own.
+
+    - kind: choice
+      prompt: |
+        True or false: Because Terraform configuration is declarative, you must write explicit
+        step-by-step instructions for creating each resource in the right order.
+      data:
+        multiple: false
+        options:
+          - text: "True"
+            feedback: Declarative configuration describes the end state; Terraform calculates the order.
+          - text: "False"
+            correct: true
+      explanation: |
+        Terraform configuration describes the end state of your infrastructure. Terraform handles the
+        underlying logic and automatically calculates dependencies between resources.
+
+    - kind: choice
+      prompt: |
+        Which HCP Terraform features help teams collaborate on infrastructure? Select all that apply.
+      data:
+        multiple: true
+        options:
+          - text: Shared, secure access to state
+            correct: true
+          - text: Role-based access controls
+            correct: true
+          - text: A private registry for sharing modules and providers
+            correct: true
+          - text: Automatic rewriting of HCL into a general-purpose programming language
+            feedback: HCP Terraform does not convert configuration into another language.
+      explanation: |
+        HCP Terraform provides secure access to shared state and secret data, role-based access
+        controls, a private registry and more, so teams can run Terraform consistently.
+
+    - kind: choice
+      prompt: |
+        Several engineers run Terraform against the same infrastructure. What helps them avoid
+        conflicts and race conditions?
+      data:
+        multiple: false
+        options:
+          - text: Each engineer keeps a local copy of the state file and emails changes to the others.
+            feedback: Separate local copies lead to conflicts and lost updates.
+          - text: Storing state in a remote backend or HCP Terraform, which share state and lock it during runs.
+            correct: true
+          - text: Committing the state file to Git after each run.
+            feedback: Git does not lock state, and state can contain sensitive data.
+      explanation: |
+        Remote state backends and HCP Terraform let teams share state securely and avoid race
+        conditions when several people change the infrastructure at the same time.
+
+    - kind: choice
+      prompt: |
+        A pull request changes this line in a shared configuration:
+
+        ```hcl
+        instance_type = "t3.large" # was "t3.micro"
+        ```
+
+        Which IaC advantage does this workflow demonstrate?
+      data:
+        multiple: false
+        options:
+          - text: Infrastructure changes are visible, reviewable and traceable in version control, just like application code.
+            correct: true
+          - text: Terraform automatically chooses the cheapest instance type.
+            feedback: Terraform applies exactly what the configuration declares.
+          - text: The change takes effect as soon as the pull request is opened.
+            feedback: Nothing changes until a plan is approved and applied.
+      explanation: |
+        Keeping configuration in version control lets you review infrastructure changes and keep their
+        history. HCP Terraform can also propose changes automatically from VCS commits.
+
+    - kind: choice
+      prompt: |
+        Which of the following is **not** an advantage of IaC?
+      data:
+        multiple: false
+        options:
+          - text: Self-documenting infrastructure, since the configuration shows what is deployed
+            feedback: This is an advantage; the code describes the infrastructure.
+          - text: Reduced risk of human error from repetitive manual steps
+            feedback: This is an advantage; automation removes manual steps.
+          - text: Guaranteed elimination of all outages
+            correct: true
+          - text: Ability to recreate infrastructure quickly from code
+            feedback: This is an advantage; the same code can rebuild the environment.
+      explanation: |
+        IaC improves consistency, speed and traceability, but no tool can guarantee that outages never
+        happen; a bad configuration can still be applied.
+
+    - kind: choice
+      prompt: |
+        Terraform takes an **immutable** approach to infrastructure. What is the main benefit of this
+        approach?
+      data:
+        multiple: false
+        options:
+          - text: It makes resources impossible to delete.
+            feedback: The immutable approach is about how changes are made, not about protecting resources from deletion.
+          - text: It reduces the complexity of upgrading or modifying services and infrastructure.
+            correct: true
+          - text: It removes the need for a state file.
+            feedback: Terraform still needs state to track resources.
+          - text: It allows changes without running a plan.
+            feedback: Terraform still plans every change.
+      explanation: |
+        The Terraform intro notes that its immutable approach to infrastructure reduces the complexity
+        of upgrading or modifying your services and infrastructure.

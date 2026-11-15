@@ -1,0 +1,246 @@
+version: 1
+type: quiz
+theory_blocks:
+  - kind: markdown
+    data:
+      content: |
+        # Write Terraform configuration using multiple providers
+
+        This quiz covers configurations with several providers and several configurations of
+        one provider: the `alias` argument, the default configuration, selecting a configuration
+        with the `provider` meta-argument, passing configurations to child modules with the
+        `providers` map, and declaring expected aliases with `configuration_aliases`.
+
+        Docs:
+        - [Provider block](https://developer.hashicorp.com/terraform/language/block/provider)
+        - [Provider requirements](https://developer.hashicorp.com/terraform/language/providers/requirements)
+        - [Providers within modules](https://developer.hashicorp.com/terraform/language/modules/develop/providers)
+data:
+  questions:
+    - kind: choice
+      prompt: |
+        You need resources in two AWS regions from one configuration. Which argument lets you define a
+        second configuration of the `aws` provider?
+      data:
+        multiple: false
+        options:
+          - text: "`name`"
+            feedback: The provider block has no `name` meta-argument.
+          - text: "`alias`"
+            correct: true
+          - text: "`region_id`"
+            feedback: This is not a provider meta-argument.
+          - text: "`count`"
+            feedback: "`count` is not supported in `provider` blocks."
+      explanation: |
+        `alias` gives an additional `provider` block a unique name, so several configurations of the same
+        provider can exist in one module.
+
+    - kind: choice
+      prompt: |
+        Given this configuration, how does a resource select the `us-west-2` configuration?
+
+        ```hcl
+        provider "aws" {
+          region = "us-east-1"
+        }
+
+        provider "aws" {
+          alias  = "west"
+          region = "us-west-2"
+        }
+        ```
+      data:
+        multiple: false
+        options:
+          - text: '`provider = "aws.west"`'
+            feedback: The reference is an unquoted expression, not a string.
+          - text: '`provider = aws["west"]`'
+            feedback: Aliases are referenced as `<PROVIDER_NAME>.<ALIAS>`, not by index.
+          - text: '`provider = aws.west`'
+            correct: true
+          - text: '`alias = "west"`'
+            feedback: "`alias` is set in the `provider` block, not in resources."
+      explanation: |
+        Resources and data sources select an alternate configuration with the `provider` meta-argument,
+        written as `<PROVIDER_NAME>.<ALIAS>`, for example `provider = aws.west`.
+
+    - kind: choice
+      prompt: |
+        Using the same two `aws` provider blocks (default in `us-east-1`, alias `west` in `us-west-2`),
+        in which region is this bucket created?
+
+        ```hcl
+        resource "aws_s3_bucket" "logs" {
+          bucket = "example-logs"
+        }
+        ```
+      data:
+        multiple: false
+        options:
+          - text: "`us-east-1`"
+            correct: true
+          - text: "`us-west-2`"
+            feedback: The aliased configuration is used only when selected with `provider = aws.west`.
+          - text: Terraform asks which configuration to use
+            feedback: Terraform never asks; it uses the default configuration.
+      explanation: |
+        A resource without a `provider` meta-argument uses the default configuration, which is the
+        `provider` block without an `alias`.
+
+    - kind: choice
+      prompt: |
+        True or false: if every `provider "aws"` block in a module has an `alias`, resources without a
+        `provider` meta-argument use the first aliased block.
+      data:
+        multiple: false
+        options:
+          - text: "True"
+            feedback: Terraform never picks an aliased configuration implicitly.
+          - text: "False"
+            correct: true
+      explanation: |
+        When all blocks are aliased, Terraform creates an implied empty default configuration. Resources
+        that rely on it fail if the provider has required arguments.
+
+    - kind: choice
+      prompt: |
+        Which blocks accept the `provider` meta-argument to select an aliased configuration?
+        Select all that apply.
+      data:
+        multiple: true
+        options:
+          - text: "`resource`"
+            correct: true
+          - text: "`output`"
+            feedback: Outputs do not use providers.
+          - text: "`data`"
+            correct: true
+          - text: "`variable`"
+            feedback: Variables do not use providers.
+      explanation: |
+        `resource` and `data` blocks select a configuration with `provider = <NAME>.<ALIAS>`. A `module`
+        block uses the `providers` map instead.
+
+    - kind: choice
+      prompt: |
+        True or false: a child module automatically inherits the **aliased** provider configurations of
+        its parent module.
+      data:
+        multiple: false
+        options:
+          - text: "True"
+            feedback: Only default (non-aliased) configurations are inherited implicitly.
+          - text: "False"
+            correct: true
+      explanation: |
+        Default provider configurations are inherited by child modules. Aliased configurations are never
+        inherited and must be passed with the `providers` argument of the `module` block.
+
+    - kind: choice
+      prompt: |
+        What does the `providers` argument in this module block do?
+
+        ```hcl
+        module "network" {
+          source = "./network"
+          providers = {
+            aws = aws.west
+          }
+        }
+        ```
+      data:
+        multiple: false
+        options:
+          - text: Creates a new provider configuration named `west` inside the module
+            feedback: The map only passes existing configurations; it does not create new ones.
+          - text: Makes the module's default `aws` configuration be the parent's `aws.west` configuration
+            correct: true
+          - text: Makes the parent's default `aws` configuration available inside the module as `aws.west`
+            feedback: The keys are names in the child module and the values are names in the calling module, so it is the other way around.
+          - text: Installs the `aws` provider version required by the module
+            feedback: Installation is done by `terraform init` based on `required_providers`.
+      explanation: |
+        In the `providers` map, keys are provider configuration names inside the child module and values
+        are configuration names in the calling module. Setting it overrides default inheritance.
+
+    - kind: choice
+      prompt: |
+        A child module creates resources with `provider = aws.src` and `provider = aws.dst`. What must the
+        child module declare so that the caller can pass these configurations?
+      data:
+        multiple: false
+        options:
+          - text: Two `provider "aws"` blocks with `alias = "src"` and `alias = "dst"`
+            feedback: Provider blocks in child modules are discouraged; aliases are declared with `configuration_aliases`.
+          - text: Nothing; aliases are passed automatically
+            feedback: Without a declaration, referencing the alias in the child module is an error.
+          - text: "`configuration_aliases = [aws.src, aws.dst]` in the `aws` entry of `required_providers`"
+            correct: true
+      explanation: |
+        The child module lists expected aliases with `configuration_aliases` in `required_providers`. The
+        caller then passes them, for example `providers = { aws.src = aws.usw1, aws.dst = aws.usw2 }`.
+
+    - kind: choice
+      prompt: |
+        A shared module contains its own `provider "aws"` block. What happens if you call it with `for_each`?
+      data:
+        multiple: false
+        options:
+          - text: Terraform reports an error
+            correct: true
+          - text: Terraform creates one provider configuration per instance
+            feedback: Modules with their own provider configurations are not compatible with `for_each`.
+          - text: It works, but only with `count`, not `for_each`
+            feedback: "`count`, `for_each` and `depends_on` all conflict with provider blocks inside the module."
+      explanation: |
+        A module that contains its own provider configurations cannot be used with `count`, `for_each` or
+        `depends_on`. Remove the `provider` blocks and pass configurations through `providers`.
+
+    - kind: choice
+      prompt: |
+        True or false: a child module inherits the provider `source` and `version` requirements from the
+        root module, so it does not need its own `required_providers` block.
+      data:
+        multiple: false
+        options:
+          - text: "False"
+            correct: true
+          - text: "True"
+            feedback: Only provider configurations are inherited, not source or version requirements.
+      explanation: |
+        Each module must declare its own provider requirements in `required_providers`. Only provider
+        configurations flow from parent to child.
+
+    - kind: choice
+      prompt: |
+        A configuration needs the `http` provider from both `hashicorp` and `mycorp`. How should they be
+        declared?
+      data:
+        multiple: false
+        options:
+          - text: Use the local name `http` twice with different `source` values
+            feedback: Local names must be unique within a module.
+          - text: "Give them different local names, such as `hashicorp-http` and `mycorp-http`, and set `provider` on resources explicitly"
+            correct: true
+          - text: Use one entry with `source = "hashicorp/http,mycorp/http"`
+            feedback: A `source` holds exactly one provider address.
+      explanation: |
+        When two providers share a type name, give them distinct compound local names. Resources then need
+        an explicit `provider` meta-argument because the resource type prefix no longer matches a local name.
+
+    - kind: choice
+      prompt: |
+        Where does HashiCorp recommend defining `provider` blocks in a configuration made of several modules?
+      data:
+        multiple: false
+        options:
+          - text: In every child module that uses the provider
+            feedback: Defining provider blocks in child modules is strongly discouraged.
+          - text: In the `.terraform.lock.hcl` file
+            feedback: The lock file only records versions and hashes.
+          - text: In the root module, passing them to child modules implicitly or with `providers`
+            correct: true
+      explanation: |
+        Provider configurations belong in the root module. Child modules receive them by inheritance
+        (default configurations) or through the `providers` map (aliased ones).

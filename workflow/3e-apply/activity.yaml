@@ -1,0 +1,141 @@
+version: 1
+type: quiz
+theory_blocks:
+  - kind: markdown
+    data:
+      content: |
+        # Apply changes to infrastructure with Terraform
+
+        This quiz covers `terraform apply`: automatic plan mode versus saved plan mode, the approval prompt and `-auto-approve`, forcing replacement with `-replace`, and what happens when an apply fails partway.
+        Recall which options can be combined with a saved plan and the recommended pattern for automation.
+
+        Docs:
+        - [terraform apply](https://developer.hashicorp.com/terraform/cli/commands/apply)
+        - [Apply Terraform configuration tutorial](https://developer.hashicorp.com/terraform/tutorials/cli/apply)
+data:
+  questions:
+    - kind: choice
+      prompt: What happens when you run `terraform apply` without a saved plan file?
+      data:
+        options:
+          - text: Terraform applies the last plan that was generated in the directory
+            feedback: Without a plan file argument, Terraform always creates a new plan.
+          - text: Terraform creates a new plan, shows it, and waits for you to approve it before making changes
+            correct: true
+          - text: Terraform applies changes immediately without showing anything
+            feedback: In automatic plan mode Terraform asks for approval unless `-auto-approve` is used.
+      explanation: |
+        In automatic plan mode, `apply` creates a plan, prompts for approval (you type `yes`) and then performs the actions.
+    - kind: choice
+      prompt: |
+        True or false: `terraform apply tfplan` (applying a saved plan) asks for interactive confirmation before making changes.
+      data:
+        options:
+          - text: "True"
+            feedback: The plan was already reviewed when it was created, so Terraform does not prompt again.
+          - text: "False"
+            correct: true
+      explanation: |
+        When you pass a saved plan, Terraform performs the operations in it without prompting. Inspect it first with `terraform show tfplan`.
+    - kind: choice
+      prompt: Which option skips the interactive approval when running `terraform apply` in automatic plan mode?
+      data:
+        options:
+          - text: "`-input=false`"
+            feedback: With `-input=false` Terraform cannot ask for approval, so it does not apply at all.
+          - text: "`-force`"
+            feedback: "`apply` has no `-force` option."
+          - text: "`-yes`"
+            feedback: There is no `-yes` option.
+          - text: "`-auto-approve`"
+            correct: true
+      explanation: |
+        `-auto-approve` skips the approval prompt. Use it with care: it also approves destructive actions.
+    - kind: choice
+      prompt: Which statement about applying a saved plan file is true?
+      data:
+        options:
+          - text: You can add `-target` or `-replace` to narrow down or change the saved plan
+            feedback: The plan file already contains the final decisions; extra planning modes and options are not allowed.
+          - text: Terraform performs exactly the actions recorded in the plan file
+            correct: true
+          - text: Terraform re-plans from scratch and ignores the file if the configuration changed
+            feedback: Terraform does not re-plan a saved plan; the plan file contains the final results of the planning decisions.
+      explanation: |
+        In saved plan mode you cannot specify additional planning modes or options; Terraform applies exactly what was planned and approved.
+    - kind: choice
+      prompt: |
+        Which pipeline pattern guarantees that the changes applied are exactly the changes that were reviewed?
+      data:
+        options:
+          - text: "`terraform plan` for review, then `terraform apply -auto-approve`"
+            feedback: The second command creates a new plan, which may differ from the reviewed one.
+          - text: "`terraform plan -out=tfplan` for review, then `terraform apply tfplan`"
+            correct: true
+          - text: "`terraform validate`, then `terraform apply -auto-approve`"
+            feedback: Nothing is reviewed, and the plan is never shown before applying.
+      explanation: |
+        Saving the plan with `-out` and applying that file makes the reviewed plan and the applied changes identical.
+    - kind: choice
+      prompt: An apply fails halfway because of a provider API error. Which statements are true? Select all that apply.
+      data:
+        multiple: true
+        options:
+          - text: Terraform automatically rolls back the resources it already created
+            feedback: Terraform does not roll back a partially completed apply.
+          - text: Changes completed before the error are saved to the state
+            correct: true
+          - text: You fix the problem and run `terraform apply` again
+            correct: true
+          - text: The state is left locked until an administrator unlocks it
+            feedback: Terraform unlocks the state before exiting.
+      explanation: |
+        On an error Terraform logs it, saves the changes made so far to state, unlocks the state and exits. There is no automatic rollback; fix the error and apply again.
+    - kind: choice
+      prompt: |
+        A VM is in a broken state, although its configuration has not changed. Which command recreates only this VM?
+
+        ```hcl
+        resource "aws_instance" "app" {
+          ami           = "ami-0abc"
+          instance_type = "t3.micro"
+        }
+        ```
+      data:
+        options:
+          - text: "`terraform apply -refresh-only`"
+            feedback: Refresh-only mode only updates state; it never replaces resources.
+          - text: "`terraform apply -replace=\"aws_instance.app\"`"
+            correct: true
+          - text: "`terraform apply -target=\"aws_instance.app\"`"
+            feedback: "`-target` limits the scope, but with no config changes there is nothing to do."
+          - text: "`terraform apply -upgrade`"
+            feedback: "`-upgrade` is an `init` option."
+      explanation: |
+        `-replace` forces Terraform to replace a resource instance instead of a no-op or in-place update. It replaces the deprecated `terraform taint` workflow.
+    - kind: choice
+      prompt: |
+        A CI job runs `terraform apply -input=false` with no saved plan and without `-auto-approve`. What happens?
+      data:
+        options:
+          - text: The apply fails, because Terraform cannot ask for approval and assumes you do not want to apply
+            correct: true
+          - text: Terraform applies the changes because input is disabled
+            feedback: Disabling input does not imply approval.
+          - text: Terraform waits until someone types `yes` in the CI log
+            feedback: With `-input=false` Terraform never prompts.
+      explanation: |
+        `-input=false` disables all prompts. Since approval cannot be requested, the operation fails. Use a saved plan or `-auto-approve` in automation.
+    - kind: choice
+      prompt: |
+        Another engineer is running an apply on the same workspace and holds the state lock. What does `-lock-timeout=60s` do for your `terraform apply`?
+      data:
+        options:
+          - text: It disables state locking for 60 seconds
+            feedback: "`-lock=false` disables locking; `-lock-timeout` only waits."
+          - text: It forcibly breaks the other lock after 60 seconds
+            feedback: Terraform never breaks a lock on its own; `terraform force-unlock` does that.
+          - text: It retries acquiring the state lock for up to 60 seconds before failing
+            correct: true
+      explanation: |
+        `-lock-timeout` makes Terraform retry acquiring the lock for the given duration. The default is `0s`, which fails immediately if the lock is held.

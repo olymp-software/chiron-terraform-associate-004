@@ -1,0 +1,258 @@
+version: 1
+type: quiz
+theory_blocks:
+  - kind: markdown
+    data:
+      content: |
+        # Describe variable scope within modules
+
+        This quiz checks how values cross module boundaries. Remember: input variables are the only way into
+        a module, outputs are the only way out (`module.<name>.<output>`), and `var.*` and `local.*` are visible
+        only inside the module that declares them. A child module never sees the parent's variables or locals.
+
+        **Docs**
+
+        - [module block reference](https://developer.hashicorp.com/terraform/language/block/module)
+        - [Manage values in modules](https://developer.hashicorp.com/terraform/language/values)
+        - [Tutorial: Build and use a local module](https://developer.hashicorp.com/terraform/tutorials/modules/module-create)
+data:
+  questions:
+    - kind: choice
+      prompt: |
+        The root module declares `variable "region" {}`. A child module (called from the root) uses
+        `var.region` in its `main.tf` but does not declare that variable itself. What happens?
+      data:
+        multiple: false
+        options:
+          - text: The child module reads the root module's `region` value automatically.
+            feedback: Child modules cannot see variables of the calling module.
+          - text: Terraform reports an error about a reference to an undeclared input variable.
+            correct: true
+          - text: "`var.region` evaluates to `null` inside the child module."
+            feedback: Referencing an undeclared variable is an error, not a null value.
+      explanation: |
+        Each module has its own scope. The child must declare `variable "region"` and the root must pass it,
+        for example `region = var.region` in the `module` block.
+
+    - kind: choice
+      prompt: |
+        A child module `network` declares `output "vpc_id"`. How does the root module reference this value?
+      data:
+        multiple: false
+        options:
+          - text: "`network.vpc_id`"
+            feedback: Module values are referenced through the `module.` prefix.
+          - text: "`output.network.vpc_id`"
+            feedback: There is no `output.` reference prefix.
+          - text: "`var.network.vpc_id`"
+            feedback: "`var.` references input variables of the current module."
+          - text: "`module.network.vpc_id`"
+            correct: true
+      explanation: |
+        Outputs of a child module are available to the caller as `module.<MODULE NAME>.<OUTPUT NAME>`.
+
+    - kind: choice
+      prompt: |
+        True or false: the root module can read any attribute of a resource inside a child module directly,
+        for example `module.web.aws_instance.this.public_ip`, even if the child module has no output for it.
+      data:
+        multiple: false
+        options:
+          - text: "True"
+            feedback: Resources inside a module are encapsulated; the caller sees only its outputs.
+          - text: "False"
+            correct: true
+      explanation: |
+        Outputs are the only supported way to get information about resources configured by a module.
+        To expose `public_ip`, the child module must declare an output for it.
+
+    - kind: choice
+      prompt: |
+        The root module defines:
+
+        ```hcl
+        locals {
+          common_tags = { team = "platform" }
+        }
+        ```
+
+        Can a child module use `local.common_tags` without any other changes?
+      data:
+        multiple: false
+        options:
+          - text: Yes, locals are global to the whole configuration.
+            feedback: Locals are scoped to the module where they are declared.
+          - text: Yes, but only if the child module is a local-path module.
+            feedback: The source type does not change scope rules.
+          - text: No, the child must declare an input variable and the root must pass `local.common_tags` to it.
+            correct: true
+      explanation: |
+        Local values are named expressions scoped to their module. To share them, pass the value through
+        an input variable of the child module.
+
+    - kind: choice
+      prompt: |
+        Which elements form the public interface of a module (what callers can set or read)? Select two.
+      data:
+        multiple: true
+        options:
+          - text: Input variables
+            correct: true
+          - text: Local values
+            feedback: Locals are internal to the module.
+          - text: Outputs
+            correct: true
+          - text: Resource blocks
+            feedback: Resources are internal; callers see their data only through outputs.
+      explanation: |
+        Variables define the input interface of a module, and outputs expose data from it. Modules communicate
+        with each other only through inputs and outputs.
+
+    - kind: choice
+      prompt: |
+        The child module in `./modules/bucket` declares:
+
+        ```hcl
+        variable "bucket_name" {
+          type = string
+        }
+        ```
+
+        Which `module` block correctly sets this variable?
+      data:
+        multiple: false
+        options:
+          - text: |
+              ```hcl
+              module "logs" {
+                source      = "./modules/bucket"
+                bucket_name = "app-logs"
+              }
+              ```
+            correct: true
+          - text: |
+              ```hcl
+              module "logs" {
+                source = "./modules/bucket"
+                variables = {
+                  bucket_name = "app-logs"
+                }
+              }
+              ```
+            feedback: There is no `variables` argument; inputs are set as top-level arguments of the module block.
+          - text: |
+              ```hcl
+              module "logs" {
+                source          = "./modules/bucket"
+                var.bucket_name = "app-logs"
+              }
+              ```
+            feedback: Argument names are plain variable names, without the `var.` prefix.
+      explanation: |
+        Variables of a module are set by passing arguments with the same names in the `module` block.
+
+    - kind: choice
+      prompt: |
+        A child module declares `variable "instance_type"` **without** a default. The calling `module` block does
+        not set `instance_type`. What happens?
+      data:
+        multiple: false
+        options:
+          - text: Terraform prompts for the value interactively during `terraform apply`.
+            feedback: Interactive prompts happen only for root module variables.
+          - text: Terraform reports an error about a missing required argument in the module block.
+            correct: true
+          - text: The variable is set to an empty string.
+            feedback: A variable without a default is required.
+          - text: Terraform uses the root module variable with the same name, if one exists.
+            feedback: Values never flow into a child module implicitly.
+      explanation: |
+        A module variable without a default is required: the caller must set it in the `module` block.
+        Optional inputs use the module's default values if not set.
+
+    - kind: choice
+      prompt: |
+        True or false: `terraform apply -var="instance_type=t3.large"` sets the `instance_type` variable declared
+        inside a child module `app`.
+      data:
+        multiple: false
+        options:
+          - text: "True"
+            feedback: "`-var`, `.tfvars` files and `TF_VAR_` variables set only root module variables."
+          - text: "False"
+            correct: true
+      explanation: |
+        Command-line flags, variable files and environment variables set root module variables. A child module
+        gets its values only from the arguments of its `module` block (which can, of course, reference `var.instance_type` of the root).
+
+    - kind: choice
+      prompt: |
+        After `terraform apply`, you want to see the `website_url` output of the child module `site` in the CLI.
+        What do you do?
+      data:
+        multiple: false
+        options:
+          - text: |
+              Add to the root module:
+
+              ```hcl
+              output "website_url" {
+                value = module.site.website_url
+              }
+              ```
+            correct: true
+          - text: Nothing; Terraform prints outputs of all modules after apply.
+            feedback: Terraform does not display child module outputs by default.
+          - text: Run `terraform output module.site`.
+            feedback: "`terraform output` shows only root module outputs."
+      explanation: |
+        Only root module outputs are shown by Terraform. To expose a child module value, create a corresponding
+        output in the root module that references `module.<name>.<output>`.
+
+    - kind: choice
+      prompt: |
+        Two child modules are wired together in the root module:
+
+        ```hcl
+        module "network" {
+          source = "./modules/network"
+        }
+
+        module "app" {
+          source    = "./modules/app"
+          subnet_id = module.network.subnet_id
+        }
+        ```
+
+        Which statements are true? Select all that apply.
+      data:
+        multiple: true
+        options:
+          - text: Terraform infers that `app` depends on the `subnet_id` output of `network`.
+            correct: true
+          - text: The `app` module must declare an input variable named `subnet_id`.
+            correct: true
+          - text: The `network` module must declare an output named `subnet_id`.
+            correct: true
+          - text: "`depends_on = [module.network]` is required, otherwise `app` may be created first."
+            feedback: The reference already creates an implicit dependency.
+      explanation: |
+        The root passes an output of one module into an input variable of another. The reference creates an
+        implicit dependency, so no `depends_on` is needed.
+
+    - kind: choice
+      prompt: |
+        Inside a child module, how do you reference the module's own input variable `env`?
+      data:
+        multiple: false
+        options:
+          - text: "`module.env`"
+            feedback: "`module.` references child modules, not variables."
+          - text: "`var.env`"
+            correct: true
+          - text: "`input.env`"
+            feedback: There is no `input.` prefix.
+          - text: "`parent.var.env`"
+            feedback: A module cannot reference values of its caller.
+      explanation: |
+        Variables within modules work the same way as in the root module: they are referenced as `var.<name>`.

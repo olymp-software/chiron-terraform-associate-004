@@ -1,0 +1,293 @@
+version: 1
+type: quiz
+theory_blocks:
+  - kind: markdown
+    data:
+      content: |
+        # Configure remote state using the backend block
+
+        This quiz covers the `backend` block: where it goes, why it cannot use variables, partial configuration
+        with `terraform init -backend-config`, and changing backends with `-migrate-state` or `-reconfigure`.
+        It also checks the `cloud` block for HCP Terraform and reading other configurations' outputs with the
+        `terraform_remote_state` data source.
+
+        **Docs**
+
+        - [Backend configuration](https://developer.hashicorp.com/terraform/language/backend)
+        - [Backends: state storage and locking](https://developer.hashicorp.com/terraform/language/state/backends)
+        - [Backend type: s3](https://developer.hashicorp.com/terraform/language/backend/s3)
+        - [terraform init](https://developer.hashicorp.com/terraform/cli/commands/init)
+        - [terraform_remote_state](https://developer.hashicorp.com/terraform/language/state/remote-state-data)
+data:
+  questions:
+    - kind: choice
+      prompt: |
+        Where do you declare a backend?
+      data:
+        multiple: false
+        options:
+          - text: In a top-level `backend` block in any `.tf` file
+            feedback: "`backend` is not a top-level block."
+          - text: Inside the `provider` block of the cloud provider that stores state
+            feedback: Providers do not configure where state is stored.
+          - text: As a nested `backend` block inside the top-level `terraform` block
+            correct: true
+          - text: In the CLI configuration file `.terraformrc`
+            feedback: The CLI configuration file does not define backends.
+      explanation: |
+        ```hcl
+        terraform {
+          backend "s3" {
+            bucket = "my-state"
+            key    = "app/terraform.tfstate"
+            region = "eu-west-1"
+          }
+        }
+        ```
+
+        The label after `backend` sets the backend type; the arguments are specific to that type.
+
+    - kind: choice
+      prompt: |
+        What happens when you run `terraform init` with this configuration?
+
+        ```hcl
+        variable "state_bucket" {
+          type = string
+        }
+
+        terraform {
+          backend "s3" {
+            bucket = var.state_bucket
+            key    = "app/terraform.tfstate"
+            region = "eu-west-1"
+          }
+        }
+        ```
+      data:
+        multiple: false
+        options:
+          - text: Terraform prompts for `state_bucket` and initializes the backend
+            feedback: Variables are never evaluated in backend blocks.
+          - text: Terraform returns an error because a backend block cannot reference variables
+            correct: true
+          - text: Terraform uses the variable's value from `terraform.tfvars`
+            feedback: Not even `terraform.tfvars` values can be used in a backend block.
+          - text: Terraform silently falls back to the local backend
+            feedback: Terraform reports an error instead of falling back.
+      explanation: |
+        A backend block cannot refer to named values such as input variables, locals or data source attributes.
+        To supply dynamic values, use partial configuration with `terraform init -backend-config`.
+
+    - kind: choice
+      prompt: |
+        Your configuration contains `backend "s3" {}` and the CI pipeline runs:
+
+        ```shell
+        terraform init -backend-config=prod.s3.tfbackend
+        ```
+
+        What must `prod.s3.tfbackend` contain?
+      data:
+        multiple: false
+        options:
+          - text: A full `terraform { backend "s3" { ... } }` block
+            feedback: The file contains no `terraform` or `backend` wrapper.
+          - text: Variable assignments that are then referenced as `var.*` in the backend block
+            feedback: Backend blocks cannot reference variables.
+          - text: A JSON copy of the remote state
+            feedback: The file holds backend settings, not state.
+          - text: The backend arguments as top-level attributes, such as `bucket = "..."`
+            correct: true
+      explanation: |
+        This is a partial configuration. The `-backend-config=PATH` file contains the backend arguments as
+        top-level attributes; the recommended naming pattern is `*.backendname.tfbackend`.
+
+    - kind: choice
+      prompt: |
+        Which are valid ways to supply the arguments missing from a partial backend configuration?
+        Select all that apply.
+      data:
+        multiple: true
+        options:
+          - text: A file passed with `terraform init -backend-config=PATH`
+            correct: true
+          - text: Key/value pairs passed with `terraform init -backend-config="KEY=VALUE"`
+            correct: true
+          - text: Interactive prompts during `terraform init` for required values
+            correct: true
+          - text: A `.tfvars` file passed with `terraform init -var-file`
+            feedback: Input variables cannot be used in backend configuration.
+      explanation: |
+        Partial configuration values come from a file, command-line key/value pairs, or interactive prompts
+        (only for required values, and only when input is enabled). Command-line values can stay in shell
+        history, so don't pass secrets this way.
+
+    - kind: choice
+      prompt: |
+        You changed the `bucket` of your S3 backend and want Terraform to copy the existing state to the new
+        location. Which command do you run?
+      data:
+        multiple: false
+        options:
+          - text: "`terraform init -migrate-state`"
+            correct: true
+          - text: "`terraform init -reconfigure`"
+            feedback: "`-reconfigure` ignores the existing configuration and does not migrate state."
+          - text: "`terraform apply -refresh-only`"
+            feedback: This syncs state with real infrastructure; it does not change backends.
+          - text: "`terraform state push`"
+            feedback: Manual push is possible but risky; the supported path is reinitializing with migration.
+      explanation: |
+        After changing backend settings you must run `terraform init` with either `-migrate-state` (copy existing
+        state to the new backend) or `-reconfigure` (use the new settings without migrating). `-force-copy`
+        answers "yes" to the migration prompts.
+
+    - kind: choice
+      prompt: |
+        What does `terraform init -reconfigure` do?
+      data:
+        multiple: false
+        options:
+          - text: Copies state from the old backend to the new one without prompting
+            feedback: That is `-force-copy` (which implies `-migrate-state`).
+          - text: Upgrades providers and modules to the newest allowed versions
+            feedback: That is `-upgrade`.
+          - text: Disregards the existing backend configuration and does not migrate any existing state
+            correct: true
+          - text: Deletes the old state after a successful migration
+            feedback: Terraform never deletes the old state during init.
+      explanation: |
+        The `-reconfigure` option disregards any existing configuration, preventing migration of existing state.
+
+    - kind: choice
+      prompt: |
+        Which statements are true? Select all that apply.
+      data:
+        multiple: true
+        options:
+          - text: A configuration can contain only one `backend` block
+            correct: true
+          - text: A configuration with a `cloud` block cannot also contain a `backend` block
+            correct: true
+          - text: You can install additional backends as plugins, like providers
+            feedback: Backends are built into Terraform and cannot be added as plugins.
+          - text: Values declared in a `backend` block can be referenced elsewhere in the configuration
+            feedback: Backend values cannot be referenced elsewhere in the configuration.
+      explanation: |
+        Only one backend block is allowed, `backend` and `cloud` are mutually exclusive, and backends cannot be
+        added as plugins.
+
+    - kind: choice
+      prompt: |
+        After `terraform init` with `-backend-config` options, where is the merged backend configuration
+        (including any credentials passed in it) stored?
+      data:
+        multiple: false
+        options:
+          - text: Only in memory, never on disk
+            feedback: Terraform saves the merged configuration so later commands can use it.
+          - text: In the `.terraform` directory, in plain text
+            correct: true
+          - text: Encrypted inside the remote state file
+            feedback: The backend configuration is stored separately from state.
+          - text: In `.terraform.lock.hcl`
+            feedback: The dependency lock file records provider versions and checksums only.
+      explanation: |
+        The merged backend configuration is stored in the `.terraform` directory in plain text, and also in
+        saved plan files. Don't commit `.terraform`, and prefer the backend's environment variables or credential
+        files for secrets.
+
+    - kind: choice
+      prompt: |
+        What does this configuration do?
+
+        ```hcl
+        terraform {
+          cloud {
+            organization = "example-org"
+            workspaces {
+              name = "networking-prod"
+            }
+          }
+        }
+        ```
+      data:
+        multiple: false
+        options:
+          - text: Configures the `remote` backend, which must also be declared in a `backend` block
+            feedback: The `cloud` block replaces a backend; you cannot combine them.
+          - text: Connects the configuration to the HCP Terraform workspace `networking-prod`, which stores the state
+            correct: true
+          - text: Downloads the state of `networking-prod` for read-only use, like `terraform_remote_state`
+            feedback: The `cloud` block makes HCP Terraform the home of this configuration's own state and runs.
+          - text: Creates a CLI workspace named `networking-prod` in `terraform.tfstate.d`
+            feedback: "`terraform.tfstate.d` belongs to the local backend."
+      explanation: |
+        The `cloud` block connects a configuration to HCP Terraform (or Terraform Enterprise, via `hostname`).
+        HCP Terraform manages state automatically, so no backend is configured. `workspaces` takes either `name`
+        or `tags`.
+
+    - kind: choice
+      prompt: |
+        A network configuration stores its state in S3 and has a root output `subnet_id`. How do you reference it
+        from another configuration?
+
+        ```hcl
+        data "terraform_remote_state" "network" {
+          backend = "s3"
+          config = {
+            bucket = "my-state"
+            key    = "network/terraform.tfstate"
+            region = "eu-west-1"
+          }
+        }
+        ```
+      data:
+        multiple: false
+        options:
+          - text: "`data.terraform_remote_state.network.subnet_id`"
+            feedback: Since Terraform 0.12, outputs are under the `outputs` attribute.
+          - text: "`terraform_remote_state.network.outputs.subnet_id`"
+            feedback: Data sources are referenced with the `data.` prefix.
+          - text: "`module.network.subnet_id`"
+            feedback: That syntax references a child module call, not another configuration's state.
+          - text: "`data.terraform_remote_state.network.outputs.subnet_id`"
+            correct: true
+      explanation: |
+        `terraform_remote_state` exposes the root module outputs of another configuration through the `outputs`
+        attribute. Its `config` takes the same arguments as the corresponding backend block.
+
+    - kind: choice
+      prompt: |
+        Which statements about `terraform_remote_state` are true? Select all that apply.
+      data:
+        multiple: true
+        options:
+          - text: Only root module outputs of the other configuration are accessible
+            correct: true
+          - text: Its consumer needs read access to the whole state snapshot, which may contain sensitive values
+            correct: true
+          - text: It can read any resource attribute stored in the other state, even without outputs
+            feedback: Resource data and nested module outputs are not exposed unless passed through a root output.
+          - text: It requires configuring a provider block for the `terraform` provider
+            feedback: It comes from the built-in `terraform` provider, which needs no configuration.
+      explanation: |
+        Only root-level outputs are exposed, but reading them requires access to the entire state snapshot. For
+        HCP Terraform, the docs recommend the `tfe_outputs` data source; generally, publishing data to a separate
+        store is safer.
+
+    - kind: choice
+      prompt: |
+        True or false: after adding or changing a `backend` block, you must run `terraform init` before
+        `terraform plan` or `terraform apply` will work.
+      data:
+        multiple: false
+        options:
+          - text: "True"
+            correct: true
+          - text: "False"
+            feedback: Terraform detects the change and requires reinitialization first.
+      explanation: |
+        Whenever a configuration's backend changes, run `terraform init` again to validate and configure the
+        backend before any plans, applies or state operations.

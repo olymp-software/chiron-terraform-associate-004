@@ -1,0 +1,166 @@
+version: 1
+type: quiz
+theory_blocks:
+  - kind: markdown
+    data:
+      content: |
+        # Understand and use complex types
+        This quiz covers type constraints: primitive types, the collection types `list`, `set` and `map`, the
+        structural types `object` and `tuple`, `optional()` object attributes with defaults, `any`, and the
+        automatic type conversion Terraform performs.
+
+        Docs:
+        - [Type constraints](https://developer.hashicorp.com/terraform/language/expressions/type-constraints)
+data:
+  questions:
+    - kind: choice
+      prompt: Which types are collection types (all elements of the same type)? Select all that apply.
+      data:
+        multiple: true
+        options:
+          - text: "`list(...)`"
+            correct: true
+          - text: "`map(...)`"
+            correct: true
+          - text: "`set(...)`"
+            correct: true
+          - text: "`object({...})`"
+            feedback: Object is a structural type; each attribute can have its own type.
+          - text: "`tuple([...])`"
+            feedback: Tuple is a structural type; each element can have its own type.
+      explanation: |
+        Collection types (`list`, `map`, `set`) group values of one type. Structural types (`object`, `tuple`)
+        group values of potentially different types.
+    - kind: choice
+      prompt: |
+        Which type constraint matches `["web", 8080, true]` exactly, keeping each element's type?
+      data:
+        multiple: false
+        options:
+          - text: "`list(string)`"
+            feedback: Terraform would convert all elements to strings.
+          - text: "`tuple([string, number, bool])`"
+            correct: true
+          - text: "`set(any)`"
+            feedback: A set requires one element type and is unordered.
+          - text: "`object({string, number, bool})`"
+            feedback: Objects have named attributes, not positional elements.
+      explanation: A tuple is a fixed-length sequence where each position has its own type.
+    - kind: choice
+      prompt: |
+        True or false: you can access an element of a `set(string)` variable by index, for example
+        `var.names[0]`.
+      data:
+        multiple: false
+        options:
+          - text: "True"
+            feedback: Sets are unordered and have no indexes.
+          - text: "False"
+            correct: true
+      explanation: |
+        Sets are unordered collections of unique values with no index or key. Convert with `tolist()` if you
+        need positional access, or iterate with `for` / `for_each`.
+    - kind: choice
+      prompt: |
+        What is the value of `var.server.port` if the caller passes `server = { name = "api" }`?
+
+        ```hcl
+        variable "server" {
+          type = object({
+            name = string
+            port = optional(number, 80)
+          })
+        }
+        ```
+      data:
+        multiple: false
+        options:
+          - text: "`null`"
+            feedback: "`optional(number)` without a default would give `null`; here the default is `80`."
+          - text: An error, because `port` is missing.
+            feedback: "`optional()` makes the attribute optional."
+          - text: "`80`"
+            correct: true
+          - text: "`0`"
+            feedback: Terraform doesn't use zero values; it uses the declared default.
+      explanation: |
+        `optional(type, default)` marks an object attribute as optional and sets the value used when the
+        caller omits it. Without a default the attribute would be `null`.
+    - kind: choice
+      prompt: |
+        A variable has `type = map(string)`. The caller passes `{ count = 3, enabled = true }`. What happens?
+      data:
+        multiple: false
+        options:
+          - text: Terraform returns a type error.
+            feedback: Numbers and bools can be converted to strings automatically.
+          - text: Terraform converts the values to strings `"3"` and `"true"`.
+            correct: true
+          - text: Terraform changes the type to `map(any)`.
+            feedback: The declared type constraint is applied as is.
+      explanation: |
+        Terraform automatically converts values to the required type when possible. Numbers and bools convert
+        to strings; strings like `"true"` or `"5"` can convert back to bool or number.
+    - kind: choice
+      prompt: |
+        What happens when an object passed to a variable of type `object({ name = string })` contains an extra
+        attribute `owner`?
+      data:
+        multiple: false
+        options:
+          - text: Terraform returns an error about an unexpected attribute.
+            feedback: Extra attributes are allowed for type conversion; they are discarded.
+          - text: The extra attribute is discarded and only `name` is kept.
+            correct: true
+          - text: The attribute is kept and accessible as `var.x.owner`.
+            feedback: Conversion to the declared object type removes attributes not in the type.
+      explanation: |
+        When converting to an object type, Terraform requires all non-optional attributes and discards any
+        extra attributes not in the type constraint.
+    - kind: choice
+      prompt: |
+        Which type constraint fits a map of subnets where each value has a `cidr` string and an `az` string?
+      data:
+        multiple: false
+        options:
+          - text: "`map(object({ cidr = string, az = string }))`"
+            correct: true
+          - text: "`list(map(string, string))`"
+            feedback: "`map` takes only one element type, and keys are not declared."
+          - text: "`object(map(string))`"
+            feedback: "`object` takes attribute definitions in braces."
+          - text: "`tuple(object({ cidr = string, az = string }))`"
+            feedback: A tuple takes a list of element types and has no keys.
+      explanation: Types can be nested; `map(object({...}))` is a common pattern for `for_each` input.
+    - kind: choice
+      prompt: |
+        What does `type = any` mean for a variable?
+      data:
+        multiple: false
+        options:
+          - text: The variable accepts only strings, numbers and bools.
+            feedback: "`any` also allows complex types."
+          - text: Terraform disables all type checking and never converts the value.
+            feedback: Terraform still infers a concrete type from the value given.
+          - text: Any type is accepted; Terraform determines the concrete type from the value.
+            correct: true
+      explanation: |
+        `any` is a placeholder: Terraform infers the most specific type that fits the given value. It is also
+        the default when `type` is omitted.
+    - kind: choice
+      prompt: |
+        Which functions convert a list to a set (removing duplicates) and a set back to a list? Select two.
+      data:
+        multiple: true
+        options:
+          - text: "`toset()`"
+            correct: true
+          - text: "`tolist()`"
+            correct: true
+          - text: "`tomap()`"
+            feedback: Converts to a map, not to a set or list.
+          - text: "`distinct_set()`"
+            feedback: There is no such function (there is `distinct()` for lists).
+      explanation: |
+        `toset()` converts to a set (dropping duplicates and ordering), `tolist()` converts a set back to a
+        list. Explicit conversion is rarely needed but common with `for_each`, which requires a set or map.

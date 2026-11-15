@@ -1,0 +1,184 @@
+version: 1
+type: quiz
+theory_blocks:
+  - kind: markdown
+    data:
+      content: |
+        # Initialize a Terraform working directory
+
+        This quiz covers `terraform init`: what it does (backend, child modules, providers, dependency lock file) and its most important options.
+        Recall `-upgrade`, `-backend-config`, `-reconfigure`, `-migrate-state`, `-backend=false`, `-lockfile=readonly`, and the role of `.terraform.lock.hcl`.
+
+        Docs:
+        - [terraform init](https://developer.hashicorp.com/terraform/cli/commands/init)
+        - [Dependency lock file](https://developer.hashicorp.com/terraform/language/files/dependency-lock)
+        - [Initialize your working directory tutorial](https://developer.hashicorp.com/terraform/tutorials/cli/init)
+data:
+  questions:
+    - kind: choice
+      prompt: Which actions does `terraform init` perform? Select all that apply.
+      data:
+        multiple: true
+        options:
+          - text: Initializes the backend
+            correct: true
+          - text: Installs child modules referenced by `module` blocks
+            correct: true
+          - text: Creates the resources defined in the configuration
+            feedback: Resources are created by `terraform apply`, not `init`.
+          - text: Installs provider plugins and records selected versions in the dependency lock file
+            correct: true
+          - text: Rewrites configuration files to the canonical style
+            feedback: That is `terraform fmt`.
+      explanation: |
+        `terraform init` initializes the backend, installs child modules, installs providers and creates or updates `.terraform.lock.hcl`.
+    - kind: choice
+      prompt: What is the name of the dependency lock file that `terraform init` creates in the root module directory?
+      data:
+        options:
+          - text: "`terraform.tfstate`"
+            feedback: This is the local state file, not the lock file.
+          - text: "`.terraform.lock.hcl`"
+            correct: true
+          - text: "`.terraform/terraform.lock`"
+            feedback: The `.terraform` directory holds installed plugins and modules; the lock file lives next to the configuration.
+          - text: "`providers.lock.json`"
+            feedback: There is no such file.
+      explanation: |
+        The dependency lock file is `.terraform.lock.hcl` in the root working directory. It should be committed to version control.
+    - kind: choice
+      prompt: |
+        True or false: the dependency lock file records the selected versions of both providers **and** modules.
+      data:
+        options:
+          - text: "True"
+            feedback: Modules are not tracked in the lock file.
+          - text: "False"
+            correct: true
+      explanation: |
+        At present, the dependency lock file tracks only **provider** dependencies. Modules always use the newest version allowed by their constraints unless an exact version is pinned.
+    - kind: choice
+      prompt: |
+        The lock file pins `hashicorp/aws` to `5.80.0`. The configuration allows `~> 5.0`, and `5.95.0` is now available. Which command selects the newest allowed version and updates the lock file?
+      data:
+        options:
+          - text: "`terraform init`"
+            feedback: Without `-upgrade`, `init` reuses the version already recorded in the lock file.
+          - text: "`terraform plan -refresh-only`"
+            feedback: Refresh-only mode updates state from remote objects; it does not install providers.
+          - text: "`terraform init -upgrade`"
+            correct: true
+          - text: "`terraform providers lock`"
+            feedback: This pre-populates hashes for platforms; it does not pick a newer version over the existing selection.
+      explanation: |
+        `terraform init -upgrade` ignores existing lock file selections, installs the newest versions that match the constraints and updates `.terraform.lock.hcl`. It also upgrades modules.
+    - kind: choice
+      prompt: |
+        Given this backend block, how do you provide the remaining settings (for example, credentials that must not be committed) at initialization time?
+
+        ```hcl
+        terraform {
+          backend "s3" {}
+        }
+        ```
+      data:
+        options:
+          - text: "`terraform init -var-file=backend.tfvars`"
+            feedback: Input variables cannot be used in backend configuration.
+          - text: "`terraform init -backend-config=backend.hcl`"
+            correct: true
+          - text: "`terraform init -reconfigure`"
+            feedback: "`-reconfigure` ignores existing backend settings but does not supply values."
+          - text: "`terraform init -from-module=backend`"
+            feedback: "`-from-module` copies a module into an empty directory."
+      explanation: |
+        This is a partial backend configuration. Missing settings are supplied with `-backend-config`, either as a file or as `key=value` pairs.
+    - kind: choice
+      prompt: |
+        You changed the backend from local to a remote backend and want Terraform to copy your existing state into the new backend. Which option fits?
+      data:
+        options:
+          - text: "`terraform init -migrate-state`"
+            correct: true
+          - text: "`terraform init -reconfigure`"
+            feedback: "`-reconfigure` ignores the existing configuration and prevents state migration."
+          - text: "`terraform init -backend=false`"
+            feedback: This skips backend initialization entirely.
+          - text: "`terraform init -get=false`"
+            feedback: This only skips child module installation.
+      explanation: |
+        `-migrate-state` copies existing state to the new backend (and may prompt for confirmation). `-reconfigure` starts fresh without migrating state.
+    - kind: choice
+      prompt: |
+        True or false: it is safe to run `terraform init` multiple times, for example after adding a new module or provider.
+      data:
+        options:
+          - text: "False"
+            feedback: Re-running init is expected and does not delete configuration or state.
+          - text: "True"
+            correct: true
+      explanation: |
+        `terraform init` is safe to run multiple times; it never deletes existing configuration or state. Rerun it whenever you add modules, providers or change the backend.
+    - kind: choice
+      prompt: |
+        You added this block to an already initialized configuration. `terraform plan` now fails with a "Module not installed" error. What should you do?
+
+        ```hcl
+        module "vpc" {
+          source  = "terraform-aws-modules/vpc/aws"
+          version = "5.8.1"
+        }
+        ```
+      data:
+        options:
+          - text: Run `terraform validate`
+            feedback: Validation also needs the module to be installed.
+          - text: Delete `.terraform.lock.hcl`
+            feedback: The lock file tracks providers, not modules; deleting it does not install the module.
+          - text: Run `terraform apply -refresh-only`
+            feedback: Refresh-only mode does not install modules.
+          - text: Run `terraform init` again
+            correct: true
+      explanation: |
+        `terraform init` installs modules added since the last run (and leaves already installed modules unchanged). `terraform get` can also download modules.
+    - kind: choice
+      prompt: |
+        In CI you want `terraform init` to fail rather than modify `.terraform.lock.hcl`, while still verifying provider checksums. Which option does this?
+      data:
+        options:
+          - text: "`-upgrade`"
+            feedback: "`-upgrade` changes lock file selections; it even conflicts with read-only mode."
+          - text: "`-lockfile=readonly`"
+            correct: true
+          - text: "`-lock=false`"
+            feedback: "`-lock` is about state locking, not the dependency lock file."
+      explanation: |
+        `-lockfile=readonly` suppresses changes to the lock file but still verifies checksums against the recorded values.
+    - kind: choice
+      prompt: |
+        Team members use Windows, macOS and Linux. Which command adds provider checksums for all these platforms to the lock file in advance?
+      data:
+        options:
+          - text: "`terraform init -upgrade`"
+            feedback: This records hashes for the current platform; it does not target a list of platforms.
+          - text: "`terraform get -update`"
+            feedback: "`terraform get` works with modules only."
+          - text: "`terraform providers lock -platform=...`"
+            correct: true
+      explanation: |
+        `terraform providers lock` pre-populates hashes for a chosen set of platforms, so the lock file works for everyone without checksum mismatches.
+    - kind: choice
+      prompt: Which files and directories should be committed to version control? Select all that apply.
+      data:
+        multiple: true
+        options:
+          - text: "`.terraform.lock.hcl`"
+            correct: true
+          - text: The `.terraform` directory
+            feedback: It contains downloaded providers and modules; it is recreated by `terraform init`.
+          - text: "`*.tf` configuration files"
+            correct: true
+          - text: "`terraform.tfstate`"
+            feedback: State files can contain secrets and should not be committed.
+      explanation: |
+        Commit the configuration and the dependency lock file so changes can be reviewed. Do not commit `.terraform/` or state files.

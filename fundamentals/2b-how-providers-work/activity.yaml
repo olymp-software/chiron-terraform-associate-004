@@ -1,0 +1,225 @@
+version: 1
+type: quiz
+theory_blocks:
+  - kind: markdown
+    data:
+      content: |
+        # Describe how Terraform uses providers
+
+        This quiz covers the split between Terraform Core and provider plugins, how plugins
+        talk to Core, what `terraform init` installs and where, how resources are matched to
+        provider configurations, and the rules for configuring providers.
+
+        Docs:
+        - [Provider block](https://developer.hashicorp.com/terraform/language/block/provider)
+        - [How Terraform works with plugins](https://developer.hashicorp.com/terraform/plugin/how-terraform-works)
+        - [Initialize Terraform configuration](https://developer.hashicorp.com/terraform/tutorials/cli/init)
+data:
+  questions:
+    - kind: choice
+      prompt: |
+        True or false: providers are distributed separately from the Terraform binary and have their own
+        release cadence and version numbers.
+      data:
+        multiple: false
+        options:
+          - text: "True"
+            correct: true
+          - text: "False"
+            feedback: Providers are plugins released independently of Terraform itself.
+      explanation: |
+        Providers are distributed separately from Terraform, each with its own versions, and are installed
+        by `terraform init`.
+
+    - kind: choice
+      prompt: |
+        How does Terraform Core communicate with provider plugins?
+      data:
+        multiple: false
+        options:
+          - text: Providers are compiled into the `terraform` binary and called as Go functions
+            feedback: Providers are separate executables, not part of the Core binary.
+          - text: Over RPC, with each plugin running as a separate process
+            correct: true
+          - text: Through a REST API that the provider exposes on a fixed local HTTP port
+            feedback: Core uses an RPC protocol; the provider then calls the target platform's API.
+          - text: By reading and writing shared files in the `.terraform` directory
+            feedback: The `.terraform` directory stores installed plugins, it is not a communication channel.
+      explanation: |
+        Plugins are Go executables that Core launches as separate processes and talks to over remote
+        procedure calls (RPC).
+
+    - kind: choice
+      prompt: |
+        Which responsibilities belong to a **provider** plugin rather than Terraform Core? Select all that apply.
+      data:
+        multiple: true
+        options:
+          - text: Authenticating with the infrastructure platform
+            correct: true
+          - text: Building the resource dependency graph
+            feedback: Building the resource graph is a Core responsibility.
+          - text: Defining resource types and data sources
+            correct: true
+          - text: Reading configuration files and managing state
+            feedback: Reading configuration and managing state are done by Core.
+      explanation: |
+        Providers initialize API client libraries, handle authentication and define resources, data sources
+        (and functions). Core reads configuration, manages state, builds the graph and executes plans.
+
+    - kind: choice
+      prompt: |
+        After `terraform init`, where are providers downloaded from the Registry installed?
+      data:
+        multiple: false
+        options:
+          - text: "`~/.terraform.d/plugins` in the home directory"
+            feedback: On Linux and macOS that is an implied local mirror directory `init` can install providers from, not where it puts downloaded providers.
+          - text: Next to the `terraform` binary
+            feedback: Providers are installed per working directory, not next to the binary.
+          - text: In the `.terraform.lock.hcl` file
+            feedback: The lock file records versions and hashes, not the provider binaries.
+          - text: "Under `.terraform/providers/` in the working directory"
+            correct: true
+      explanation: |
+        `terraform init` installs providers into `.terraform/providers/<hostname>/<namespace>/<type>/<version>/<os_arch>`.
+        The `.terraform` directory is managed by Terraform and should not be committed.
+
+    - kind: choice
+      prompt: |
+        Which changes require running `terraform init` again in an existing working directory?
+        Select all that apply.
+      data:
+        multiple: true
+        options:
+          - text: Adding a new provider to `required_providers`
+            correct: true
+          - text: Changing the `backend` configuration
+            correct: true
+          - text: Adding a new module block with a remote source
+            correct: true
+          - text: Changing the `instance_type` argument of an existing resource
+            feedback: Changing resource arguments only needs `plan`/`apply`, not re-initialization.
+      explanation: |
+        Re-initialize after adding or removing providers or modules, changing provider or module versions,
+        or changing the `backend`/`cloud` configuration.
+
+    - kind: choice
+      prompt: |
+        The configuration below has no `provider "google"` block and no `provider` meta-argument.
+        Which provider does Terraform use for this resource?
+
+        ```hcl
+        resource "google_compute_network" "main" {
+          name = "main"
+        }
+        ```
+      data:
+        multiple: false
+        options:
+          - text: The default configuration of the provider with local name `google`
+            correct: true
+          - text: None; Terraform fails because every resource needs a `provider` argument
+            feedback: The `provider` meta-argument is optional; Terraform infers it from the resource type.
+          - text: "The provider with local name `compute`"
+            feedback: Only the first word of the resource type (`google`) is used as the provider local name.
+      explanation: |
+        Without a `provider` meta-argument, Terraform takes the first word of the resource type as the local
+        provider name and uses that provider's default (non-aliased) configuration. If there is no `provider`
+        block, Terraform assumes an empty configuration, which fails only if the provider has required arguments.
+
+    - kind: choice
+      prompt: |
+        Which values can you use in the arguments of a `provider` block? Select all that apply.
+      data:
+        multiple: true
+        options:
+          - text: Input variables
+            correct: true
+          - text: Local values whose inputs are known before apply
+            correct: true
+          - text: Computed attributes of resources, such as the `id` of an instance created in the same apply
+            feedback: Provider arguments may only use values Terraform knows before apply.
+      explanation: |
+        Provider arguments accept expressions, but only values known before apply, such as variables and
+        locals. Attributes computed during apply cannot be referenced.
+
+    - kind: choice
+      prompt: |
+        What is the recommended way to supply cloud credentials to a provider?
+      data:
+        multiple: false
+        options:
+          - text: Hard-code them in the `provider` block so every teammate uses the same values
+            feedback: Secrets in configuration end up in version control.
+          - text: Use environment variables or another credential source the provider supports
+            correct: true
+          - text: Put them in the `.terraform.lock.hcl` file
+            feedback: The lock file only records provider versions and hashes.
+      explanation: |
+        Many providers read credentials from environment variables or other sources, which keeps secrets out
+        of version-controlled configuration. Check each provider's documentation for the supported methods.
+
+    - kind: choice
+      prompt: |
+        In the Terraform Registry, which provider tier is owned and maintained by HashiCorp?
+      data:
+        multiple: false
+        options:
+          - text: Partner
+            feedback: Partner providers are written and maintained by third-party companies.
+          - text: Community
+            feedback: Community providers are published by individuals or groups.
+          - text: Official
+            correct: true
+          - text: Archived
+            feedback: Archived providers are official or partner providers that are no longer maintained.
+      explanation: |
+        Official providers are owned and maintained by HashiCorp. Partner (and Partner Premier) providers are
+        maintained by third-party companies, Community providers by individual maintainers.
+
+    - kind: choice
+      prompt: |
+        Which setting lets several working directories on one machine reuse already downloaded providers
+        instead of downloading them again?
+      data:
+        multiple: false
+        options:
+          - text: "`plugin_cache_dir` in the CLI configuration file"
+            correct: true
+          - text: "`terraform init -upgrade`"
+            feedback: "`-upgrade` selects newer versions; it does not share downloads between directories."
+          - text: "`required_version` in the `terraform` block"
+            feedback: "`required_version` constrains the Terraform CLI version."
+      explanation: |
+        The optional provider plugin cache is enabled with `plugin_cache_dir` in the CLI configuration file
+        and saves time and bandwidth.
+
+    - kind: choice
+      prompt: |
+        True or false: to use the `terraform_remote_state` data source you must add the `terraform` provider
+        to `required_providers`.
+      data:
+        multiple: false
+        options:
+          - text: "True"
+            feedback: The `terraform` provider is built in and needs no `required_providers` entry.
+          - text: "False"
+            correct: true
+      explanation: |
+        `terraform_remote_state` comes from the built-in provider `terraform.io/builtin/terraform`, which is
+        always available. Declaring the old `hashicorp/terraform` provider is wrong.
+
+    - kind: choice
+      prompt: |
+        True or false: HCP Terraform installs the required providers as part of every run.
+      data:
+        multiple: false
+        options:
+          - text: "False"
+            feedback: HCP Terraform and Terraform Enterprise install providers in each run, honoring the lock file.
+          - text: "True"
+            correct: true
+      explanation: |
+        The Terraform CLI installs providers when you run `terraform init`; HCP Terraform and Terraform
+        Enterprise install them as part of every run, using the committed lock file.

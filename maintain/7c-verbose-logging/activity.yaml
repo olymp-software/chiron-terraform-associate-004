@@ -1,0 +1,214 @@
+version: 1
+type: quiz
+theory_blocks:
+  - kind: markdown
+    data:
+      content: |
+        # Describe when and how to use verbose logging
+
+        This quiz covers Terraform's detailed logs: enabling them with `TF_LOG` and its levels
+        (`TRACE`, `DEBUG`, `INFO`, `WARN`, `ERROR`, plus `JSON`), writing them to a file with
+        `TF_LOG_PATH`, and enabling core and provider logs separately with `TF_LOG_CORE` and
+        `TF_LOG_PROVIDER`. Recall where logs go by default and when verbose logs help, such as
+        troubleshooting core or provider errors and filing bug reports.
+
+        **Docs**
+
+        - [Debugging Terraform](https://developer.hashicorp.com/terraform/internals/debugging)
+        - [Environment variables](https://developer.hashicorp.com/terraform/cli/config/environment-variables)
+        - [Tutorial: Troubleshoot Terraform](https://developer.hashicorp.com/terraform/tutorials/configuration-language/troubleshooting-workflow)
+data:
+  questions:
+    - kind: choice
+      prompt: |
+        Which environment variable enables Terraform's detailed logs?
+      data:
+        options:
+          - text: "`TF_DEBUG`"
+            feedback: Terraform does not use this variable.
+          - text: "`TF_VERBOSE`"
+            feedback: Terraform does not use this variable.
+          - text: "`TF_LOG`"
+            correct: true
+          - text: "`TF_LOG_PATH`"
+            feedback: "`TF_LOG_PATH` only chooses a file; logging is enabled by `TF_LOG`."
+      explanation: |
+        Setting `TF_LOG` to a log level causes detailed logs to appear on stderr.
+
+    - kind: choice
+      prompt: |
+        Which list orders the `TF_LOG` levels from **most** to **least** verbose?
+      data:
+        options:
+          - text: "`DEBUG`, `TRACE`, `INFO`, `WARN`, `ERROR`"
+            feedback: "`TRACE` is more verbose than `DEBUG`."
+          - text: "`TRACE`, `DEBUG`, `INFO`, `WARN`, `ERROR`"
+            correct: true
+          - text: "`ERROR`, `WARN`, `INFO`, `DEBUG`, `TRACE`"
+            feedback: This is the order from least to most verbose.
+          - text: "`TRACE`, `INFO`, `DEBUG`, `ERROR`, `WARN`"
+            feedback: "`DEBUG` is more verbose than `INFO`, and `WARN` more verbose than `ERROR`."
+      explanation: |
+        The levels in order of decreasing verbosity are `TRACE`, `DEBUG`, `INFO`, `WARN` and `ERROR`.
+        `TRACE` is the most verbose and the one to use for bug reports.
+
+    - kind: choice
+      prompt: |
+        You set `TF_LOG=DEBUG` and do not set any other logging variable. Where do the logs go?
+      data:
+        options:
+          - text: To `terraform.log` in the working directory
+            feedback: A file is used only when `TF_LOG_PATH` is set.
+          - text: To stdout, mixed with the normal command output
+            feedback: Detailed logs are written to stderr.
+          - text: To stderr
+            correct: true
+          - text: To the state backend
+            feedback: Logs are never stored in the backend.
+      explanation: |
+        "Enabling this setting causes detailed logs to appear on `stderr`."
+
+    - kind: choice
+      prompt: |
+        What happens when you run `terraform plan` with these settings?
+
+        ```shell
+        unset TF_LOG
+        export TF_LOG_PATH=./terraform.log
+        terraform plan
+        ```
+      data:
+        options:
+          - text: Logs are written to `./terraform.log` at the `TRACE` level
+            feedback: "`TF_LOG_PATH` alone does not enable logging."
+          - text: No detailed logs are written, because `TF_LOG` is not set
+            correct: true
+          - text: Logs are written to `./terraform.log` at the `INFO` level
+            feedback: "`TF_LOG_PATH` alone does not enable logging."
+          - text: The command fails with an error about a missing `TF_LOG`
+            feedback: Terraform runs normally; it just doesn't log.
+      explanation: |
+        "Even when `TF_LOG_PATH` is set, `TF_LOG` must be set in order for any logging to be enabled."
+
+    - kind: choice
+      prompt: |
+        `TF_LOG_PATH` points to a file that already exists from a previous run. What does
+        Terraform do with it when logging is enabled?
+      data:
+        options:
+          - text: Overwrites the file
+            feedback: Terraform does not truncate the file.
+          - text: Fails, because the file already exists
+            feedback: An existing log file is not an error.
+          - text: Creates a new file with a timestamp suffix
+            feedback: Terraform uses exactly the given path.
+          - text: Appends the new logs to the file
+            correct: true
+      explanation: |
+        `TF_LOG_PATH` forces the log to be appended to the given file.
+
+    - kind: choice
+      prompt: |
+        Which statements about `TF_LOG=JSON` are true? Select all that apply.
+      data:
+        multiple: true
+        options:
+          - text: It outputs logs at the `TRACE` level or higher
+            correct: true
+          - text: It uses a parseable JSON encoding
+            correct: true
+          - text: The JSON format is a stable interface you can safely build scripts on
+            feedback: |
+              The docs say the JSON encoding is not a stable interface and may change at any
+              time without warning.
+          - text: It logs only errors, as JSON objects
+            feedback: "`JSON` logs at `TRACE` level or higher, not only errors."
+      explanation: |
+        `TF_LOG=JSON` produces `TRACE`-level logs as parseable JSON. The format is meant for
+        supporting tooling and is not considered stable.
+
+    - kind: choice
+      prompt: |
+        A plan fails with an error coming from a provider plugin, and you want logs from the
+        provider only, without Terraform core logs. Which variable do you set?
+      data:
+        options:
+          - text: "`TF_LOG_PROVIDER=TRACE`"
+            correct: true
+          - text: "`TF_LOG_CORE=TRACE`"
+            feedback: "`TF_LOG_CORE` enables logs of Terraform core, not of providers."
+          - text: "`TF_LOG=PROVIDER`"
+            feedback: "`PROVIDER` is not a log level."
+          - text: "`TF_PROVIDER_LOG=TRACE`"
+            feedback: Terraform does not use this variable.
+      explanation: |
+        `TF_LOG_CORE` and `TF_LOG_PROVIDER` enable logging separately for Terraform itself and
+        for provider plugins. They take the same levels as `TF_LOG` but activate only a subset of the logs.
+
+    - kind: choice
+      prompt: |
+        True or false: `TF_LOG_CORE` and `TF_LOG_PROVIDER` accept the same level values as `TF_LOG`.
+      data:
+        options:
+          - text: "True"
+            correct: true
+          - text: "False"
+            feedback: They take the same level arguments as `TF_LOG`.
+      explanation: |
+        Both variables take the same level arguments as `TF_LOG`, for example `TRACE` or `DEBUG`,
+        but each activates only its subset of the logs.
+
+    - kind: choice
+      prompt: |
+        Which are valid ways to turn detailed logging off again in your shell? Select all that apply.
+      data:
+        multiple: true
+        options:
+          - text: "`unset TF_LOG`"
+            correct: true
+          - text: "`export TF_LOG=off`"
+            correct: true
+          - text: "`unset TF_LOG_PATH` while keeping `TF_LOG=TRACE`"
+            feedback: Logging stays enabled; the logs just go to stderr instead of a file.
+          - text: "`terraform init -no-log`"
+            feedback: There is no such option.
+      explanation: |
+        To disable logging, either unset `TF_LOG` or set it to `off`.
+
+    - kind: choice
+      prompt: |
+        When is enabling verbose logging most appropriate? Select all that apply.
+      data:
+        multiple: true
+        options:
+          - text: Investigating an unexpected error that seems to come from Terraform core or a provider
+            correct: true
+          - text: Gathering details to attach to a bug report for Terraform or a provider
+            correct: true
+          - text: Fixing an HCL syntax error that `terraform fmt` or `terraform validate` already pinpoints
+            feedback: |
+              Language errors come with file and line numbers; `fmt` and `validate` are the
+              first tools to use, and verbose logs add little.
+          - text: Running every production apply, to keep an audit trail of changes
+            feedback: Detailed logs are a debugging aid, not an audit mechanism, and they are very noisy.
+      explanation: |
+        Verbose logs help diagnose core and provider errors and are requested in bug reports.
+        Configuration (language) errors are better handled with `terraform fmt` and `terraform validate`.
+
+    - kind: choice
+      prompt: |
+        You are filing a bug report for Terraform core. Which logging setup gives maintainers
+        the most detail, saved to a file you can attach?
+      data:
+        options:
+          - text: "`TF_LOG=ERROR` and `TF_LOG_PATH=./terraform.log`"
+            feedback: "`ERROR` is the least verbose level."
+          - text: "`TF_LOG=TRACE` only"
+            feedback: Logs go to stderr; without `TF_LOG_PATH` nothing is saved to a file.
+          - text: "`TF_LOG_PATH=./terraform.log` only"
+            feedback: "`TF_LOG_PATH` alone does not enable logging."
+          - text: "`TF_LOG=TRACE` and `TF_LOG_PATH=./terraform.log`"
+            correct: true
+      explanation: |
+        `TRACE` is the most verbose level, and `TF_LOG_PATH` persists the log to a file.
+        The docs ask to include the detailed log, for example as a gist, when reporting a bug.

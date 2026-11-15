@@ -1,0 +1,256 @@
+version: 1
+type: quiz
+theory_blocks:
+  - kind: markdown
+    data:
+      content: |
+        # Use modules in configuration
+
+        This quiz checks how to call modules with the `module` block: the root module versus child modules,
+        the meta-arguments `count`, `for_each`, `depends_on` and `providers`, referencing module instances
+        and outputs, and composing modules into a flat module tree.
+
+        **Docs**
+
+        - [Module composition](https://developer.hashicorp.com/terraform/language/modules/develop/composition)
+        - [module block reference](https://developer.hashicorp.com/terraform/language/block/module)
+        - [Tutorial: Use registry modules](https://developer.hashicorp.com/terraform/tutorials/modules/module-use)
+data:
+  questions:
+    - kind: choice
+      prompt: |
+        What is the **root module**?
+      data:
+        multiple: false
+        options:
+          - text: The `.tf` files in the working directory where you run Terraform commands.
+            correct: true
+          - text: The first module downloaded from the Terraform Registry.
+            feedback: Registry modules are child modules called from the root module.
+          - text: A module stored in the `modules/` directory.
+            feedback: The `modules/` directory is only a convention for child modules.
+          - text: Any module that has no input variables.
+            feedback: Having or not having variables does not make a module the root module.
+      explanation: |
+        Every configuration has a root module made of the files in the main working directory. Modules it
+        calls with `module` blocks are child modules, which can call other child modules.
+
+    - kind: choice
+      prompt: |
+        Given this configuration, how do you reference the `instance_id` output of the **second** instance?
+
+        ```hcl
+        module "web" {
+          source = "./modules/web"
+          count  = 3
+        }
+        ```
+      data:
+        multiple: false
+        options:
+          - text: "`module.web.instance_id[1]`"
+            feedback: The index belongs to the module instance, before the output name.
+          - text: "`module.web[2].instance_id`"
+            feedback: "`count` indexes start at 0, so the second instance is `[1]`."
+          - text: "`module.web[1].instance_id`"
+            correct: true
+          - text: "`module.web.1.instance_id`"
+            feedback: Module instances are indexed with square brackets.
+      explanation: |
+        With `count`, a module call becomes a list of instances: `module.web[0]`, `module.web[1]`, …
+        Outputs are read per instance, such as `module.web[1].instance_id`.
+
+    - kind: choice
+      prompt: |
+        Which expression returns the `arn` output of the `logs` instance?
+
+        ```hcl
+        module "bucket" {
+          source   = "./modules/bucket"
+          for_each = toset(["logs", "assets"])
+          name     = each.key
+        }
+        ```
+      data:
+        multiple: false
+        options:
+          - text: '`module.bucket["logs"].arn`'
+            correct: true
+          - text: "`module.bucket[0].arn`"
+            feedback: "`for_each` instances are keyed by the map key or set value, not by number."
+          - text: '`module.logs.arn`'
+            feedback: The module label is `bucket`; `logs` is an instance key.
+          - text: '`module.bucket.arn["logs"]`'
+            feedback: The key selects the module instance and goes before the output name.
+      explanation: |
+        With `for_each`, module instances are addressed by key: `module.bucket["logs"]`.
+
+    - kind: choice
+      prompt: |
+        True or false: a single `module` block can use both `count` and `for_each`.
+      data:
+        multiple: false
+        options:
+          - text: "True"
+            feedback: "`count` and `for_each` are mutually exclusive."
+          - text: "False"
+            correct: true
+      explanation: |
+        A module block may use `count` (a number) or `for_each` (a map or set of strings), but not both.
+
+    - kind: choice
+      prompt: |
+        Which meta-arguments can you use in a `module` block in Terraform 1.12? Select all that apply.
+      data:
+        multiple: true
+        options:
+          - text: "`count`"
+            correct: true
+          - text: "`providers`"
+            correct: true
+          - text: "`lifecycle`"
+            feedback: "`lifecycle` is a resource meta-argument; module blocks do not support it."
+          - text: "`depends_on`"
+            correct: true
+          - text: "`for_each`"
+            correct: true
+      explanation: |
+        Module blocks support `count`, `for_each`, `depends_on` and `providers`, besides `source`, `version`
+        and the module's input variables.
+
+    - kind: choice
+      prompt: |
+        The root module has two AWS provider configurations. What does the `providers` argument do here?
+
+        ```hcl
+        provider "aws" {
+          region = "us-east-1"
+        }
+
+        provider "aws" {
+          alias  = "west"
+          region = "us-west-2"
+        }
+
+        module "replica" {
+          source = "./modules/bucket"
+          providers = {
+            aws = aws.west
+          }
+        }
+        ```
+      data:
+        multiple: false
+        options:
+          - text: It creates a new provider configuration inside the module.
+            feedback: "`providers` passes an existing configuration from the parent; it does not create one."
+          - text: The `aws` provider inside the module uses the `aws.west` configuration, so its resources go to `us-west-2`.
+            correct: true
+          - text: The module uses both configurations and creates resources in both regions.
+            feedback: The map assigns exactly one configuration to the module's `aws` provider.
+      explanation: |
+        The `providers` map assigns provider configurations from the parent to provider names in the child,
+        in the form `<provider> = <provider>.<alias>`.
+
+    - kind: choice
+      prompt: |
+        True or false: if a `module` block has no `providers` argument, the child module uses the parent's
+        default (non-aliased) provider configurations.
+      data:
+        multiple: false
+        options:
+          - text: "True"
+            correct: true
+          - text: "False"
+            feedback: Default provider configurations are inherited implicitly; only aliased ones must be passed explicitly.
+      explanation: |
+        Child modules inherit the default provider configurations of their parent. That's why reusable modules
+        usually contain no `provider` blocks. Use `providers` to pass aliased (alternate) configurations.
+
+    - kind: choice
+      prompt: |
+        What is the effect of `depends_on` in this module block?
+
+        ```hcl
+        module "app" {
+          source     = "./modules/app"
+          depends_on = [aws_iam_role_policy.app]
+        }
+        ```
+      data:
+        multiple: false
+        options:
+          - text: Terraform completes all operations on `aws_iam_role_policy.app` before any operations on the module's resources.
+            correct: true
+          - text: The policy is passed into the module as an input variable.
+            feedback: "`depends_on` only adds ordering; inputs are passed as named arguments."
+          - text: Only the first resource in the module waits for the policy.
+            feedback: The dependency applies to the whole module.
+      explanation: |
+        `depends_on` on a module makes the whole module wait for the listed objects. Use it only for hidden
+        dependencies that Terraform cannot infer from references.
+
+    - kind: choice
+      prompt: |
+        According to the module composition guidance, how should you structure a configuration that combines
+        several modules?
+      data:
+        multiple: false
+        options:
+          - text: Nest modules deeply so each module creates the dependencies it needs.
+            feedback: The guidance recommends the opposite, where modules receive dependencies from the root.
+          - text: Keep the module tree flat, with one level of child modules wired together by the root module.
+            correct: true
+          - text: Put everything in one large module to avoid passing values between modules.
+            feedback: Composition is about combining small modules, not one monolith.
+      explanation: |
+        HashiCorp recommends keeping the module tree flat, with only one level of child modules, and connecting
+        them in the root module with expressions such as `vpc_id = module.network.vpc_id`.
+
+    - kind: choice
+      prompt: |
+        True or false: you can call the same module source from two `module` blocks in one configuration,
+        as long as the blocks have different labels.
+      data:
+        multiple: false
+        options:
+          - text: "True"
+            correct: true
+          - text: "False"
+            feedback: The same source address can be used in several module blocks, each with a unique label.
+      explanation: |
+        A module can be called many times, for example `module "web_prod"` and `module "web_dev"` with the same
+        `source` and different inputs. Each block needs a unique label.
+
+    - kind: choice
+      prompt: |
+        You added a new `module` block that uses a registry module and immediately run `terraform plan`.
+        What happens?
+      data:
+        multiple: false
+        options:
+          - text: Terraform downloads the module during the plan.
+            feedback: Plan does not install modules.
+          - text: Terraform ignores the new module until the next `terraform apply`.
+            feedback: Terraform does not silently skip module blocks.
+          - text: Terraform reports that the module is not installed and asks you to run `terraform init`.
+            correct: true
+      explanation: |
+        Whenever you add a new module to a configuration, Terraform must install it before use:
+        run `terraform init` (or `terraform get`).
+
+    - kind: choice
+      prompt: |
+        What is a **data-only module**?
+      data:
+        multiple: false
+        options:
+          - text: A module that only declares input variables and outputs, with no expressions.
+            feedback: Data-only modules use data sources to look up existing objects.
+          - text: A module that stores data in Terraform state without creating resources.
+            feedback: Data sources are read on each run; they do not store arbitrary data.
+          - text: A module that only reads information about existing infrastructure with data sources and creates nothing.
+            correct: true
+      explanation: |
+        Data-only modules retrieve information about infrastructure created elsewhere, for example a shared
+        network, so many configurations can use it and the lookup can change in one place.

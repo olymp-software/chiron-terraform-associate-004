@@ -1,0 +1,176 @@
+version: 1
+type: quiz
+theory_blocks:
+  - kind: markdown
+    data:
+      content: |
+        # Apply formatting and style adjustments to a configuration
+
+        This quiz covers `terraform fmt` and its options (`-check`, `-recursive`, `-diff`, `-write=false`, `-list=false`) and the main recommendations of the Terraform style guide.
+        Recall what `fmt` changes and what it leaves alone, naming conventions, argument ordering and the recommended file layout.
+
+        Docs:
+        - [terraform fmt](https://developer.hashicorp.com/terraform/cli/commands/fmt)
+        - [Style guide](https://developer.hashicorp.com/terraform/language/style)
+data:
+  questions:
+    - kind: choice
+      prompt: What does `terraform fmt` do?
+      data:
+        options:
+          - text: Checks the configuration for undeclared variables and missing arguments
+            feedback: That is `terraform validate`.
+          - text: Rewrites configuration files to the canonical format and style
+            correct: true
+          - text: Updates the state file to match the configuration
+            feedback: "`fmt` never touches state."
+      explanation: |
+        `terraform fmt` rewrites Terraform configuration files to the canonical format and style. It does not check whether the configuration is valid.
+    - kind: choice
+      prompt: |
+        A CI job must fail if any file is not formatted, without modifying files. Which command fits?
+      data:
+        options:
+          - text: "`terraform fmt -diff`"
+            feedback: "`-diff` shows changes but still rewrites files and does not fail."
+          - text: "`terraform validate -check`"
+            feedback: "`validate` has no `-check` option and does not check formatting."
+          - text: "`terraform fmt -list=false`"
+            feedback: This only hides the list of changed files.
+          - text: "`terraform fmt -check`"
+            correct: true
+      explanation: |
+        `-check` returns exit status 0 if all input is formatted and non-zero otherwise, listing the unformatted files. It implies `-write=false`.
+    - kind: choice
+      prompt: |
+        True or false: by default, `terraform fmt` also formats files in all subdirectories of the current directory.
+      data:
+        options:
+          - text: "True"
+            feedback: Without `-recursive`, only the given or current directory is processed.
+          - text: "False"
+            correct: true
+      explanation: |
+        By default `fmt` only processes the specified or current directory. Add `-recursive` to process subdirectories, for example a `modules/` folder.
+    - kind: choice
+      prompt: |
+        You want to see exactly which formatting changes `terraform fmt` makes. Which option displays them?
+      data:
+        options:
+          - text: "`-diff`"
+            correct: true
+          - text: "`-json`"
+            feedback: "`fmt` does not have a JSON diff output."
+          - text: "`-verbose`"
+            feedback: There is no `-verbose` option.
+      explanation: |
+        `terraform fmt -diff` displays diffs of the formatting changes. Combine it with `-check` to only show them without writing.
+    - kind: choice
+      prompt: |
+        Which changes will `terraform fmt` apply to this file? Select all that apply.
+
+        ```hcl
+        resource "aws_instance" "web" {
+            ami = "ami-0abc"
+            instance_type = "t3.micro"
+        }
+        ```
+      data:
+        multiple: true
+        options:
+          - text: Re-indent the arguments to two spaces
+            correct: true
+          - text: Align the `=` signs of the consecutive arguments
+            correct: true
+          - text: Rename the resource to follow naming conventions
+            feedback: "`fmt` never renames anything; it only adjusts layout."
+          - text: Add a missing `tags` argument
+            feedback: "`fmt` does not add or remove arguments."
+      explanation: |
+        The style guide uses two-space indentation and aligned equals signs for consecutive single-line arguments; `fmt` applies these automatically.
+    - kind: choice
+      prompt: According to the Terraform style guide, which resource declaration is named best?
+      data:
+        options:
+          - text: "`resource \"aws_instance\" \"aws_instance_web\"`"
+            feedback: Don't repeat the resource type in the name; the address already contains it.
+          - text: "`resource \"aws_instance\" \"web-api\"`"
+            feedback: Use underscores, not hyphens, to separate words.
+          - text: "`resource \"aws_instance\" \"web_api\"`"
+            correct: true
+          - text: "`resource \"aws_instance\" \"WebAPI\"`"
+            feedback: Use lowercase descriptive nouns with underscores.
+      explanation: |
+        Use descriptive nouns separated by underscores and don't include the resource type in the name, because the address (`aws_instance.web_api`) already includes it.
+    - kind: choice
+      prompt: |
+        The style guide recommends an order for meta-arguments. Which layout follows it?
+      data:
+        options:
+          - text: |
+              ```hcl
+              resource "aws_instance" "web" {
+                count = 2
+
+                ami           = "ami-0abc"
+                instance_type = "t3.micro"
+
+                lifecycle {
+                  create_before_destroy = true
+                }
+              }
+              ```
+            correct: true
+          - text: |
+              ```hcl
+              resource "aws_instance" "web" {
+                lifecycle {
+                  create_before_destroy = true
+                }
+
+                ami           = "ami-0abc"
+                instance_type = "t3.micro"
+                count         = 2
+              }
+              ```
+            feedback: "`count` should come first, and the `lifecycle` block last."
+      explanation: |
+        Put meta-arguments such as `count` and `for_each` first, then regular arguments, then nested blocks, and meta-argument blocks such as `lifecycle` last.
+    - kind: choice
+      prompt: Which comment syntax does the Terraform style guide recommend?
+      data:
+        options:
+          - text: "`//` for single-line comments and `/* */` for multi-line"
+            feedback: These are supported for backward compatibility but are not idiomatic.
+          - text: "`#` for both single-line and multi-line comments"
+            correct: true
+          - text: "`--` for all comments"
+            feedback: HCL does not support `--` comments.
+      explanation: |
+        Use `#` for comments. `//` and `/* */` are supported but not considered idiomatic.
+    - kind: choice
+      prompt: |
+        According to the style guide, which file should contain the `terraform` block with `required_version` and `required_providers`?
+      data:
+        options:
+          - text: "`main.tf`"
+            feedback: "`main.tf` is for resource and data source blocks."
+          - text: "`providers.tf`"
+            feedback: "`providers.tf` is for `provider` blocks and their configuration."
+          - text: "`terraform.tf`"
+            correct: true
+          - text: "`variables.tf`"
+            feedback: "`variables.tf` holds `variable` blocks."
+      explanation: |
+        The style guide recommends `terraform.tf` for the `terraform` block, `providers.tf` for providers, `main.tf` for resources and data sources, `variables.tf` and `outputs.tf` for inputs and outputs.
+    - kind: choice
+      prompt: |
+        True or false: the canonical format produced by `terraform fmt` may change slightly between Terraform versions, so it is a good idea to run `fmt` after upgrading.
+      data:
+        options:
+          - text: "True"
+            correct: true
+          - text: "False"
+            feedback: The docs say the canonical format may change in minor ways between versions.
+      explanation: |
+        The docs note that the canonical format may change between versions and recommend running `terraform fmt` after upgrading. New formatting rules are not considered breaking changes.

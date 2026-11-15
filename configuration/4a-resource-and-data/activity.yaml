@@ -1,0 +1,178 @@
+version: 1
+type: quiz
+theory_blocks:
+  - kind: markdown
+    data:
+      content: |
+        # Use and differentiate resource and data blocks
+        This quiz checks that you know when to use a `resource` block (Terraform creates, updates and destroys
+        the object) and when to use a `data` block (Terraform only reads an existing object). Recall how each is
+        addressed, which meta-arguments they accept and when Terraform reads data sources.
+
+        Docs:
+        - [Resources](https://developer.hashicorp.com/terraform/language/resources)
+        - [Data sources](https://developer.hashicorp.com/terraform/language/data-sources)
+        - [Query data sources tutorial](https://developer.hashicorp.com/terraform/tutorials/configuration-language/data-sources)
+data:
+  questions:
+    - kind: choice
+      prompt: What is the main difference between a `resource` block and a `data` block?
+      data:
+        multiple: false
+        options:
+          - text: A `data` block creates infrastructure only during the first apply; a `resource` block updates it later.
+            feedback: Data blocks never create infrastructure.
+          - text: A `resource` block manages the lifecycle of an infrastructure object; a `data` block only reads information from the provider.
+            correct: true
+          - text: A `data` block is read from the state file, a `resource` block is read from the provider API.
+            feedback: Data sources query the provider; both are recorded in state.
+          - text: They are interchangeable; `data` is just an alias kept for backward compatibility.
+            feedback: They have different semantics and addresses.
+      explanation: |
+        Resources are managed objects that Terraform creates, updates and destroys. Data sources fetch data from
+        the provider but do not create or modify anything.
+    - kind: choice
+      prompt: |
+        How do you reference the `id` attribute of this data source from another block?
+
+        ```hcl
+        data "aws_ami" "ubuntu" {
+          most_recent = true
+          owners      = ["099720109477"]
+        }
+        ```
+      data:
+        multiple: false
+        options:
+          - text: "`aws_ami.ubuntu.id`"
+            feedback: Without the `data.` prefix this refers to a managed resource.
+          - text: "`data.ubuntu.id`"
+            feedback: The address needs both the type and the name.
+          - text: "`data.aws_ami.ubuntu.id`"
+            correct: true
+          - text: "`ami.data.ubuntu.id`"
+            feedback: The syntax is `data.<TYPE>.<NAME>.<ATTRIBUTE>`.
+      explanation: Data sources are referenced as `data.<TYPE>.<NAME>.<ATTRIBUTE>`.
+    - kind: choice
+      prompt: |
+        True or false: running `terraform destroy` deletes the real-world objects that the configuration only
+        reads through `data` blocks.
+      data:
+        multiple: false
+        options:
+          - text: "True"
+            feedback: Data sources are read-only; Terraform never manages their objects.
+          - text: "False"
+            correct: true
+      explanation: |
+        Terraform only destroys objects it manages via `resource` blocks. Objects read by data sources are owned
+        elsewhere and stay untouched.
+    - kind: choice
+      prompt: |
+        When does Terraform normally read a data source whose arguments are all known?
+      data:
+        multiple: false
+        options:
+          - text: Only during `terraform apply`, after all resources are created.
+            feedback: Reading is deferred to apply only when arguments are unknown or dependencies change.
+          - text: During `terraform init`.
+            feedback: init installs providers and modules; it does not read data sources.
+          - text: During planning (refresh), so its values are available in the plan.
+            correct: true
+          - text: Only when `terraform refresh` is run explicitly.
+            feedback: Plan and apply read data sources automatically.
+      explanation: |
+        Terraform attempts to query data sources during the planning phase. It defers the read to apply when
+        arguments depend on values known only after apply, or the data block depends on a resource with
+        pending changes; the plan shows `(known after apply)` in that case.
+    - kind: choice
+      prompt: Which meta-arguments can a `data` block use? Select all that apply.
+      data:
+        multiple: true
+        options:
+          - text: "`count`"
+            correct: true
+          - text: "`for_each`"
+            correct: true
+          - text: "`depends_on`"
+            correct: true
+          - text: "`provider`"
+            correct: true
+          - text: "`lifecycle { prevent_destroy = true }`"
+            feedback: Data sources are never destroyed; their `lifecycle` supports only `precondition` and `postcondition`.
+      explanation: |
+        Data blocks support `count`, `for_each`, `depends_on`, `provider` and `lifecycle` with custom conditions.
+        Options like `prevent_destroy` and `create_before_destroy` apply only to managed resources.
+    - kind: choice
+      prompt: |
+        What does the label pair `"aws_instance" "web"` mean in this block?
+
+        ```hcl
+        resource "aws_instance" "web" {
+          ami           = "ami-0abc123"
+          instance_type = "t3.micro"
+        }
+        ```
+      data:
+        multiple: false
+        options:
+          - text: "`aws_instance` is the resource type, `web` is the local name; the address is `aws_instance.web`."
+            correct: true
+          - text: "`aws_instance` is the provider name, `web` is the resource type."
+            feedback: The first label is the type; the provider is inferred from its prefix (`aws`).
+          - text: "`web` becomes the `Name` tag of the EC2 instance."
+            feedback: The local name exists only inside Terraform configuration.
+          - text: "`web` must be unique across all modules in the configuration."
+            feedback: The type+name pair must be unique within one module only.
+      explanation: |
+        The first label is the resource type, the second is a local name unique within the module for that
+        type. By default Terraform picks the provider from the type prefix (`aws_`).
+    - kind: choice
+      prompt: |
+        A team created a VPC in another configuration. You need its ID in your configuration without managing
+        the VPC. What should you use?
+      data:
+        multiple: false
+        options:
+          - text: A `resource "aws_vpc"` block with the same arguments.
+            feedback: That would create a second VPC managed by your configuration.
+          - text: A `data "aws_vpc"` block filtered by tags or ID, or a `terraform_remote_state` data source.
+            correct: true
+          - text: Copy the other configuration's state file into your working directory.
+            feedback: That would make your configuration try to manage the other team's objects.
+          - text: "`terraform import` the VPC into your state."
+            feedback: Import makes Terraform manage the object, which is not wanted here.
+      explanation: |
+        Data sources let a configuration use information defined outside of Terraform or by another separate
+        Terraform configuration, without managing it.
+    - kind: choice
+      prompt: |
+        Which statements about data sources are true? Select two.
+      data:
+        multiple: true
+        options:
+          - text: Some data sources are local-only, such as `aws_iam_policy_document`, and compute data without calling remote APIs.
+            correct: true
+          - text: Data sources require the `terraform_remote_state` backend to be configured.
+            feedback: "`terraform_remote_state` is just one data source; others don't need it."
+          - text: Adding `depends_on` to a data block can defer its read to apply time when the dependency has changes.
+            correct: true
+          - text: A data source result is never stored in the state file.
+            feedback: Data source results are recorded in state too.
+      explanation: |
+        Local-only data sources (e.g. `aws_iam_policy_document`, `local_file`) are recalculated on each plan.
+        With `depends_on`, Terraform defers reading until the dependency is applied if it has pending changes.
+    - kind: choice
+      prompt: Which provider is used for `resource "google_compute_instance" "vm"` if no `provider` meta-argument is set?
+      data:
+        multiple: false
+        options:
+          - text: The first provider listed in `required_providers`.
+            feedback: Order in `required_providers` does not matter.
+          - text: Terraform asks interactively during plan.
+            feedback: Provider selection is never interactive.
+          - text: The default (non-aliased) configuration of the provider with local name `google`, taken from the type prefix.
+            correct: true
+      explanation: |
+        Terraform interprets the first word of the resource type as the provider local name and uses its
+        default configuration unless `provider = google.<alias>` is set.

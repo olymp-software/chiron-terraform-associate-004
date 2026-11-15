@@ -1,0 +1,249 @@
+version: 1
+type: quiz
+theory_blocks:
+  - kind: markdown
+    data:
+      content: |
+        # Explain how Terraform sources modules
+
+        This quiz checks how the `source` argument of a `module` block tells Terraform where to get module code:
+        local paths, the public and private registries, GitHub and generic Git, HTTP URLs, S3 and GCS buckets,
+        subdirectories with `//` and Git refs with `?ref=`. Recall what `terraform init` does with each kind of source.
+
+        **Docs**
+
+        - [Use modules from the registry](https://developer.hashicorp.com/terraform/registry/modules/use)
+        - [Module sources](https://developer.hashicorp.com/terraform/language/modules/sources)
+        - [module block reference](https://developer.hashicorp.com/terraform/language/block/module)
+        - [Tutorial: Use registry modules](https://developer.hashicorp.com/terraform/tutorials/modules/module-use)
+data:
+  questions:
+    - kind: choice
+      prompt: |
+        Which `source` value does Terraform treat as a **local path** module?
+      data:
+        multiple: false
+        options:
+          - text: '`source = "modules/vpc"`'
+            feedback: |
+              A local path must start with `./` or `../`. Without the prefix Terraform does not
+              treat the value as a local path (it would try to parse it as a registry or remote address).
+          - text: '`source = "local::modules/vpc"`'
+            feedback: There is no `local::` prefix for module sources.
+          - text: '`source = "./modules/vpc"`'
+            correct: true
+          - text: '`source = "file://modules/vpc"`'
+            feedback: Local modules are referenced with a `./` or `../` relative path, not a `file://` URL.
+      explanation: |
+        Local paths must begin with `./` or `../` so Terraform can tell them apart from registry addresses.
+
+    - kind: choice
+      prompt: |
+        What is the source address format of a module in the **public** Terraform Registry?
+      data:
+        multiple: false
+        options:
+          - text: "`<PROVIDER>/<NAMESPACE>/<NAME>`"
+            feedback: The provider (target system) comes last, not first.
+          - text: "`<NAMESPACE>/<NAME>/<PROVIDER>`"
+            correct: true
+          - text: "`registry.terraform.io::<NAMESPACE>/<NAME>`"
+            feedback: Registry sources use no `::` prefix and always include the provider part.
+          - text: "`<NAMESPACE>/<NAME>`"
+            feedback: The provider part is required, for example `hashicorp/consul/aws`.
+      explanation: |
+        Public registry modules use `<NAMESPACE>/<NAME>/<PROVIDER>`, for example `hashicorp/consul/aws`.
+
+    - kind: choice
+      prompt: |
+        Your organization publishes a module `k8s-cluster` for `azurerm` in the HCP Terraform private registry
+        of the organization `example-corp`. Which `source` value uses it?
+      data:
+        multiple: false
+        options:
+          - text: '`source = "example-corp/k8s-cluster/azurerm"`'
+            feedback: Without a hostname Terraform looks the module up in the public registry.
+          - text: '`source = "hcp::example-corp/k8s-cluster/azurerm"`'
+            feedback: There is no `hcp::` prefix; private registry addresses start with a hostname.
+          - text: '`source = "git::https://app.terraform.io/example-corp/k8s-cluster.git"`'
+            feedback: The private registry is not a Git server; use a registry address.
+          - text: '`source = "app.terraform.io/example-corp/k8s-cluster/azurerm"`'
+            correct: true
+      explanation: |
+        Private registry modules use `<HOSTNAME>/<NAMESPACE>/<NAME>/<PROVIDER>`. For HCP Terraform
+        the hostname is `app.terraform.io`.
+
+    - kind: choice
+      prompt: |
+        What does Terraform do with this module source?
+
+        ```hcl
+        module "vpc" {
+          source = "git::https://example.com/network.git//modules/vpc?ref=v1.2.0"
+        }
+        ```
+      data:
+        multiple: false
+        options:
+          - text: Clones the repository at `v1.2.0` and uses the module in the `modules/vpc` subdirectory.
+            correct: true
+          - text: Clones only the `modules/vpc` folder of the repository, at the latest commit of the default branch.
+            feedback: |
+              `?ref=v1.2.0` selects the tag, and Terraform fetches the whole repository,
+              then reads the module from the subdirectory.
+          - text: Downloads the module `modules/vpc` version `1.2.0` from the public registry.
+            feedback: The `git::` prefix makes this a Git source, not a registry source.
+          - text: Fails, because `//` is not allowed in a module source.
+            feedback: "`//` is the documented way to point to a subdirectory of a package."
+      explanation: |
+        `//` separates the package address from a subdirectory inside it. Terraform fetches the whole package
+        (here the Git repository checked out at `ref=v1.2.0`) and reads the module from `modules/vpc`.
+
+    - kind: choice
+      prompt: |
+        Which values can you put in the `ref` query parameter of a Git module source? Select all that apply.
+      data:
+        multiple: true
+        options:
+          - text: A tag name, such as `v1.2.0`
+            correct: true
+          - text: A version constraint, such as `~> 1.2`
+            feedback: Version constraints are not supported for Git sources; `ref` is passed to `git checkout`.
+          - text: A branch name, such as `main`
+            correct: true
+          - text: A commit SHA-1 hash
+            correct: true
+      explanation: |
+        `ref` accepts any value that `git checkout` accepts: a branch, a tag or a commit SHA-1 hash.
+        Without `ref`, Terraform uses the default branch referenced by `HEAD`.
+
+    - kind: choice
+      prompt: |
+        Where does `terraform init` install remote modules (registry, Git, HTTP, S3 …)?
+      data:
+        multiple: false
+        options:
+          - text: "`~/.terraform.d/plugins`"
+            feedback: That is a location for provider plugins, not modules.
+          - text: "`.terraform/providers`"
+            feedback: This directory holds providers, not modules.
+          - text: "`.terraform/modules` in the working directory"
+            correct: true
+          - text: Modules are never downloaded; Terraform reads them remotely on each plan.
+            feedback: "`terraform init` (or `terraform get`) downloads and caches module code locally."
+      explanation: |
+        `terraform init` installs new modules in the `.terraform/modules` directory within the configuration's
+        working directory.
+
+    - kind: choice
+      prompt: |
+        True or false: modules referenced with a local path such as `./modules/app` are downloaded into
+        `.terraform/modules` exactly like remote modules, so you must run `terraform init` after every edit
+        of their code.
+      data:
+        multiple: false
+        options:
+          - text: "True"
+            feedback: |
+              Local modules are not "installed" like remote ones; Terraform uses the files already on disk
+              directly.
+          - text: "False"
+            correct: true
+      explanation: |
+        Local paths are not "installed" in the same sense as other sources: the files are already on local disk,
+        so Terraform uses them directly rather than from a copy in `.terraform/modules`. You still need
+        `init`/`get` after adding a new module block or changing its `source`.
+
+    - kind: choice
+      prompt: |
+        Which source addresses does Terraform recognize as **GitHub** sources? Select two.
+      data:
+        multiple: true
+        options:
+          - text: "`github.com/hashicorp/example`"
+            correct: true
+          - text: "`hashicorp/example`"
+            feedback: A bare two-part address is not a GitHub shorthand; registry addresses need three parts.
+          - text: "`git@github.com:hashicorp/example.git`"
+            correct: true
+          - text: "`gh::hashicorp/example`"
+            feedback: There is no `gh::` prefix.
+      explanation: |
+        Terraform recognizes unprefixed `github.com` URLs as Git repositories over HTTPS, and
+        `git@github.com:` for SSH. It clones them with `git clone`.
+
+    - kind: choice
+      prompt: |
+        You need a module from an internal Git server over HTTPS that is **not** GitHub or Bitbucket.
+        Which `source` is correct?
+      data:
+        multiple: false
+        options:
+          - text: '`source = "https://git.example.com/infra/vpc.git"`'
+            feedback: Without the `git::` prefix Terraform treats this as a plain HTTP URL, not a Git repository.
+          - text: '`source = "git::https://git.example.com/infra/vpc.git"`'
+            correct: true
+          - text: '`source = "git.example.com/infra/vpc"`'
+            feedback: Only `github.com` and `bitbucket.org` are recognized without a prefix.
+      explanation: |
+        For arbitrary Git repositories, use the `git::` prefix followed by any valid Git URL, for example
+        `git::https://example.com/vpc.git` or `git::ssh://username@example.com/storage.git`.
+
+    - kind: choice
+      prompt: |
+        Which `source` value correctly loads a module stored as an archive in an Amazon S3 bucket?
+      data:
+        multiple: false
+        options:
+          - text: '`source = "s3::https://s3-eu-west-1.amazonaws.com/examplecorp-terraform-modules/vpc.zip"`'
+            correct: true
+          - text: '`source = "s3://examplecorp-terraform-modules/vpc"`'
+            feedback: S3 sources use the `s3::` prefix with a bucket object URL pointing to an archive.
+          - text: '`source = "aws/s3/examplecorp-terraform-modules/vpc"`'
+            feedback: This looks like a registry address, not an S3 source.
+      explanation: |
+        Use the `s3::` prefix followed by an S3 bucket object URL. The object must be an archive
+        (such as `.zip` or `.tar.gz`) that Terraform extracts to get the module source tree.
+        GCS works the same way with the `gcs::` prefix.
+
+    - kind: choice
+      prompt: |
+        What happens when the source is a plain HTTP URL ending with a supported archive extension?
+
+        ```hcl
+        module "vpc" {
+          source = "https://example.com/vpc-module.zip"
+        }
+        ```
+      data:
+        multiple: false
+        options:
+          - text: Terraform treats the URL as a Git repository and runs `git clone`.
+            feedback: Git is used only with `git::`, `github.com` or `bitbucket.org` sources.
+          - text: Terraform rejects it; HTTP URLs are allowed only for the registry.
+            feedback: HTTP URLs are a supported module source.
+          - text: Terraform downloads the archive and extracts it to get the module code.
+            correct: true
+      explanation: |
+        For URLs with archive extensions (`.zip`, `.tar.gz`, …) Terraform uses the archive contents directly.
+        For other URLs it requests the URL with `terraform-get=1` and follows the `X-Terraform-Get` header
+        or `terraform-get` meta tag to the real source.
+
+    - kind: choice
+      prompt: |
+        You change the `source` of an existing module block from `?ref=v1.2.0` to `?ref=v1.3.0` and run
+        `terraform plan`. What do you need to do?
+      data:
+        multiple: false
+        options:
+          - text: Nothing; `terraform plan` fetches the new ref automatically.
+            feedback: Plan does not install modules; it reports that the module must be installed first.
+          - text: Run `terraform init` so Terraform installs the module from the new source.
+            correct: true
+          - text: Run `terraform refresh`.
+            feedback: Refresh updates state from real infrastructure; it does not install modules.
+          - text: Delete the `.terraform.lock.hcl` file.
+            feedback: The lock file tracks providers only, not modules.
+      explanation: |
+        You must run `terraform init` (or `terraform get`) after modifying the `source` argument so that
+        Terraform can update the local copy of the module code.

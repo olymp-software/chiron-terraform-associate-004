@@ -1,0 +1,239 @@
+version: 1
+type: quiz
+theory_blocks:
+  - kind: markdown
+    data:
+      content: |
+        # Manage module versions
+
+        This quiz checks how to control which module version Terraform installs: the `version` argument
+        (registry sources only), version constraint operators such as `~>`, upgrading with `terraform init -upgrade`,
+        pinning Git sources with `?ref=`, and the fact that the dependency lock file does not record modules.
+
+        **Docs**
+
+        - [module block: version](https://developer.hashicorp.com/terraform/language/block/module#version)
+        - [Version constraints](https://developer.hashicorp.com/terraform/language/expressions/version-constraints)
+        - [Dependency lock file](https://developer.hashicorp.com/terraform/language/files/dependency-lock)
+data:
+  questions:
+    - kind: choice
+      prompt: |
+        Which module block is **invalid** because it uses `version` with a source that does not support it?
+      data:
+        multiple: false
+        options:
+          - text: |
+              ```hcl
+              module "vpc" {
+                source  = "terraform-aws-modules/vpc/aws"
+                version = "~> 5.0"
+              }
+              ```
+            feedback: A public registry source supports `version`.
+          - text: |
+              ```hcl
+              module "vpc" {
+                source  = "./modules/vpc"
+                version = "1.2.0"
+              }
+              ```
+            correct: true
+          - text: |
+              ```hcl
+              module "vpc" {
+                source  = "app.terraform.io/example-corp/vpc/aws"
+                version = "1.2.0"
+              }
+              ```
+            feedback: A private registry source (HCP Terraform) supports `version`.
+      explanation: |
+        The `version` argument works only when `source` points to a module in a registry (public or private).
+        Modules sourced from local file paths do not support `version`.
+
+    - kind: choice
+      prompt: |
+        A module block has `version = "~> 1.2.0"`. Which versions satisfy the constraint? Select all that apply.
+      data:
+        multiple: true
+        options:
+          - text: "`1.2.5`"
+            correct: true
+          - text: "`1.3.0`"
+            feedback: "`~> 1.2.0` lets only the patch (right-most) component increase."
+          - text: "`1.2.10`"
+            correct: true
+          - text: "`2.0.0`"
+            feedback: Major version changes are never allowed by `~> 1.2.0`.
+      explanation: |
+        `~>` allows only the right-most specified component to increment. `~> 1.2.0` means `>= 1.2.0, < 1.3.0`.
+
+    - kind: choice
+      prompt: |
+        Which versions does the constraint `~> 3.1` allow?
+      data:
+        multiple: false
+        options:
+          - text: Only `3.1.x` patch releases
+            feedback: With two components, the minor version may increase too; that is `~> 3.1.0`.
+          - text: Any version `>= 3.1`, including `4.0`
+            feedback: "`~>` sets an upper bound; `4.0` is excluded."
+          - text: "`3.1` and newer `3.x` versions, but not `4.0`"
+            correct: true
+      explanation: |
+        `~> 3.1` allows the right-most component (minor) to increase: `3.2`, `3.10` are allowed, `4.0` is not.
+
+    - kind: choice
+      prompt: |
+        You use a module from a Git repository and want to pin it to the tag `v2.3.0`. What is the correct way?
+      data:
+        multiple: false
+        options:
+          - text: |
+              ```hcl
+              source  = "git::https://example.com/vpc.git"
+              version = "2.3.0"
+              ```
+            feedback: "`version` is supported only for registry sources; Git sources are pinned with `ref`."
+          - text: '`source = "git::https://example.com/vpc.git?ref=v2.3.0"`'
+            correct: true
+          - text: '`source = "git::https://example.com/vpc.git@v2.3.0"`'
+            feedback: Git refs are selected with the `ref` query parameter.
+      explanation: |
+        For Git sources, select a tag, branch or commit with `?ref=`. Pinning to a tag or commit makes
+        installations repeatable.
+
+    - kind: choice
+      prompt: |
+        A registry module was installed at `5.1.0` with `version = "~> 5.1"`. Version `5.4.0` has now been published.
+        What does `terraform init` (without flags) do?
+      data:
+        multiple: false
+        options:
+          - text: Upgrades the module to `5.4.0`, because it is the newest matching version.
+            feedback: Without `-upgrade`, Terraform keeps an installed version that already meets the constraint.
+          - text: Keeps `5.1.0`, because the installed version still meets the constraint.
+            correct: true
+          - text: Fails, because the constraint matches more than one version.
+            feedback: Constraints are ranges; matching several versions is normal.
+      explanation: |
+        Terraform uses the newest **installed** version that meets the constraint. Run
+        `terraform init -upgrade` to move to the newest version the constraint allows.
+
+    - kind: choice
+      prompt: |
+        What does `terraform init -upgrade` do for modules?
+      data:
+        multiple: false
+        options:
+          - text: Upgrades Terraform CLI itself to the latest release.
+            feedback: Terraform never upgrades its own binary.
+          - text: Ignores version constraints and installs the latest version of every module.
+            feedback: The constraints are still respected.
+          - text: Rewrites the `version` arguments in the configuration to the latest versions.
+            feedback: Terraform does not change your configuration files.
+          - text: Installs the newest module versions that still meet the configured version constraints.
+            correct: true
+      explanation: |
+        `-upgrade` makes `terraform init` update installed modules (and providers) to the newest versions
+        allowed by the constraints.
+
+    - kind: choice
+      prompt: |
+        True or false: `.terraform.lock.hcl` records the exact versions of the modules selected by `terraform init`,
+        so all team members get the same module versions.
+      data:
+        multiple: false
+        options:
+          - text: "True"
+            feedback: The dependency lock file tracks only provider dependencies.
+          - text: "False"
+            correct: true
+      explanation: |
+        At present the dependency lock file tracks only provider dependencies; Terraform does not remember
+        version selections for remote modules. To guarantee one module version, use an exact version constraint.
+
+    - kind: choice
+      prompt: |
+        Your team needs every run to use exactly the same version of a third-party registry module. Which
+        `version` value achieves this?
+      data:
+        multiple: false
+        options:
+          - text: '`version = ">= 3.0.0"`'
+            feedback: A lower bound allows any newer version.
+          - text: '`version = "~> 3.0"`'
+            feedback: This allows any `3.x` release.
+          - text: '`version = "3.2.1"`'
+            correct: true
+          - text: Leave `version` out; the lock file pins it.
+            feedback: The lock file does not track modules; without `version` Terraform uses the latest version.
+      explanation: |
+        A version without an operator (same as `=`) allows only that exact version. HashiCorp recommends
+        pinning specific versions of third-party modules so updates happen on your schedule.
+
+    - kind: choice
+      prompt: |
+        What does Terraform install for a registry module when the `version` argument is omitted?
+      data:
+        multiple: false
+        options:
+          - text: The latest version available from the registry
+            correct: true
+          - text: Version `1.0.0`
+            feedback: There is no fixed default version.
+          - text: Nothing; `version` is required for registry modules
+            feedback: "`version` is optional, though strongly recommended."
+      explanation: |
+        `version` defaults to the latest available version. HashiCorp recommends always constraining it to avoid
+        unexpected or unwanted changes.
+
+    - kind: choice
+      prompt: |
+        What does `version = ">= 1.2.0, < 2.0.0"` mean?
+      data:
+        multiple: false
+        options:
+          - text: Any version that is either at least `1.2.0` or below `2.0.0`
+            feedback: Comma-separated conditions are combined with AND, not OR.
+          - text: Any version at least `1.2.0` and below `2.0.0`
+            correct: true
+          - text: Exactly `1.2.0` or exactly `2.0.0`
+            feedback: These are range operators, not exact versions.
+      explanation: |
+        Multiple conditions are separated by commas, and Terraform uses versions that meet **all** of them.
+
+    - kind: choice
+      prompt: |
+        A module publishes `2.0.0-beta1`. Which `version` constraint selects it?
+      data:
+        multiple: false
+        options:
+          - text: '`version = "~> 2.0"`'
+            feedback: "`~>` does not match pre-release versions."
+          - text: '`version = ">= 2.0.0-beta1"`'
+            feedback: Comparison operators do not match pre-release versions.
+          - text: '`version = "2.0.0-beta1"`'
+            correct: true
+      explanation: |
+        Pre-release versions are selected only by an exact version (with `=` or without an operator).
+        `>`, `>=`, `<`, `<=` and `~>` do not match them.
+
+    - kind: choice
+      prompt: |
+        You change a module's `version` from `"~> 4.0"` to `"~> 5.0"`. Which command must you run before
+        `terraform plan` works with the new version?
+      data:
+        multiple: false
+        options:
+          - text: "`terraform validate`"
+            feedback: Validate checks configuration; it does not install modules.
+          - text: "`terraform state pull`"
+            feedback: This reads state; it does not install modules.
+          - text: "`terraform init`"
+            correct: true
+          - text: "`terraform fmt`"
+            feedback: Fmt only formats files.
+      explanation: |
+        You must rerun `terraform init` after changing `version` so Terraform installs a version that meets
+        the new constraint.

@@ -1,0 +1,233 @@
+version: 1
+type: quiz
+theory_blocks:
+  - kind: markdown
+    data:
+      content: |
+        # Describe HCP Terraform collaboration and governance features
+
+        This quiz covers how HCP Terraform helps teams work together safely: teams and
+        workspace permissions, the private registry, policy enforcement with Sentinel and
+        OPA and their enforcement levels, health assessments (drift detection and
+        continuous validation), the explorer and change requests, dynamic provider
+        credentials and variable sets.
+
+        Docs:
+        - [Policy enforcement](https://developer.hashicorp.com/terraform/cloud-docs/policy-enforcement)
+        - [Private registry](https://developer.hashicorp.com/terraform/cloud-docs/registry)
+        - [Health](https://developer.hashicorp.com/terraform/cloud-docs/workspaces/health)
+        - [Teams](https://developer.hashicorp.com/terraform/cloud-docs/users-teams-organizations/teams)
+        - [Explorer](https://developer.hashicorp.com/terraform/cloud-docs/workspaces/explorer)
+        - [Change requests](https://developer.hashicorp.com/terraform/cloud-docs/workspaces/change-requests)
+        - [Dynamic credentials tutorial](https://developer.hashicorp.com/terraform/tutorials/cloud/dynamic-credentials)
+data:
+  questions:
+    - kind: choice
+      prompt: |
+        A Sentinel policy with the **soft-mandatory** enforcement level fails during a run.
+        What happens?
+      data:
+        multiple: false
+        options:
+          - text: The failure is only shown as a warning and the run continues
+            feedback: That is the advisory level.
+          - text: The run stops, but a user allowed to override policies can let it continue
+            correct: true
+          - text: The run stops and nobody can override it; the code must be fixed
+            feedback: That describes hard-mandatory (when the policy set does not allow overrides).
+          - text: The run is discarded and the workspace is locked
+            feedback: Policy failures do not lock the workspace.
+      explanation: |
+        Sentinel has three levels. Advisory never interrupts the run, soft-mandatory stops
+        the run but can be overridden by authorized users, and hard-mandatory stops the
+        run until the issue is fixed, unless the policy set is configured to allow overrides.
+    - kind: choice
+      prompt: |
+        Which enforcement levels can an **OPA** policy have in HCP Terraform? Select all that apply.
+      data:
+        multiple: true
+        options:
+          - text: advisory
+            correct: true
+          - text: soft-mandatory
+            feedback: Soft-mandatory is a Sentinel level; OPA has no such level.
+          - text: mandatory
+            correct: true
+          - text: hard-mandatory
+            feedback: Hard-mandatory is a Sentinel level; OPA has no such level.
+      explanation: |
+        OPA policies are either advisory (failures never interrupt the run) or mandatory
+        (failures stop the run, but users with the Manage Policy Overrides permission can
+        override them).
+    - kind: choice
+      prompt: |
+        At which point of a run does HCP Terraform evaluate policy sets for a workspace?
+      data:
+        multiple: false
+        options:
+          - text: Before `terraform plan`, against the raw configuration files only
+            feedback: Policies are evaluated against the plan, so they run after it.
+          - text: After the apply, to report violations in the new state
+            feedback: Policies run before the apply so they can block it.
+          - text: After the plan and before the apply
+            correct: true
+      explanation: |
+        HCP Terraform checks the Terraform plan against the policy sets during each run,
+        between the plan and apply stages. A failed mandatory policy can stop the run
+        before anything is changed.
+    - kind: choice
+      prompt: |
+        To which targets can a policy set be applied? Select all that apply.
+      data:
+        multiple: true
+        options:
+          - text: Globally, to every workspace in the organization
+            correct: true
+          - text: To specific projects
+            correct: true
+          - text: To specific workspaces
+            correct: true
+          - text: To individual resources inside one state file
+            feedback: Policy sets are attached to workspaces (directly or through projects, tags or globally), not to resources.
+      explanation: |
+        Policy sets can apply globally, to specific projects, workspaces and Stacks, or to
+        workspaces with specific tags, and you can exclude some of them.
+    - kind: choice
+      prompt: |
+        True or false: when a health assessment detects drift, HCP Terraform automatically
+        applies the configuration to bring the infrastructure back in line.
+      data:
+        multiple: false
+        options:
+          - text: "True"
+            feedback: Assessments only report drift; you decide how to resolve it.
+          - text: "False"
+            correct: true
+      explanation: |
+        HCP Terraform does not modify your infrastructure as part of an assessment and an
+        assessment never interferes with runs. It reports drift so you can apply the
+        configuration again or update it to match reality.
+    - kind: choice
+      prompt: |
+        Continuous validation in health assessments re-evaluates which custom assertions
+        from your configuration? Select all that apply.
+      data:
+        multiple: true
+        options:
+          - text: "`check` blocks"
+            correct: true
+          - text: Resource `precondition` blocks
+            correct: true
+          - text: Resource `postcondition` blocks
+            correct: true
+          - text: "`validation` blocks inside `variable` blocks"
+            feedback: Input variable validation is checked when values are supplied, not by continuous validation.
+      explanation: |
+        Continuous validation regularly verifies that preconditions, postconditions and
+        check blocks still pass. Drift detection is the other half of health assessments.
+    - kind: choice
+      prompt: |
+        Which requirement must a workspace meet to use health assessments?
+      data:
+        multiple: false
+        options:
+          - text: It must use Local execution mode
+            feedback: Assessments need HCP Terraform to run Terraform, so local mode is not supported.
+          - text: It must use Remote or Agent execution mode and have at least one successful apply
+            correct: true
+          - text: It must be connected to a VCS repository
+            feedback: CLI-driven and API-driven workspaces can also use health assessments.
+      explanation: |
+        Health assessments require Remote or Agent execution, a successful latest run and
+        at least one successful apply. They are available in the Standard and Premium
+        editions.
+    - kind: choice
+      prompt: |
+        Your organization `acme` published a module `vpc` for the `aws` provider to its
+        HCP Terraform private registry. Which `source` value references it?
+      data:
+        multiple: false
+        options:
+          - text: "`source = \"acme/vpc/aws\"`"
+            feedback: Without a hostname the source points to the public Terraform Registry.
+          - text: "`source = \"app.terraform.io/acme/vpc/aws\"`"
+            correct: true
+          - text: "`source = \"registry.terraform.io/acme/vpc/aws\"`"
+            feedback: This is the public registry host, not your organization's private registry.
+          - text: "`source = \"git::app.terraform.io/acme/vpc\"`"
+            feedback: Private registry modules use the registry address format, not a Git source.
+      explanation: |
+        Private registry modules use `<HOSTNAME>/<ORGANIZATION>/<NAME>/<PROVIDER>`, with
+        `app.terraform.io` as the hostname for HCP Terraform. They are available only to
+        members of that organization.
+    - kind: choice
+      prompt: |
+        What is the main benefit of dynamic provider credentials in HCP Terraform?
+      data:
+        multiple: false
+        options:
+          - text: Credentials are encrypted with a customer-managed key and stored in the workspace
+            feedback: Dynamic credentials avoid storing long-lived credentials in the workspace at all.
+          - text: Each run gets unique, short-lived credentials through OIDC workload identity, so no static secrets are stored
+            correct: true
+          - text: Provider credentials are copied from your `terraform login` token
+            feedback: The HCP Terraform API token is not a cloud provider credential.
+      explanation: |
+        With dynamic credentials HCP Terraform presents a workload identity token to the
+        cloud provider at the start of each run and receives temporary credentials, which
+        limits the blast radius of compromised credentials.
+    - kind: choice
+      prompt: |
+        You configure dynamic AWS credentials for many workspaces of one project.
+        Which approach fits best?
+      data:
+        multiple: false
+        options:
+          - text: Put `TFC_AWS_PROVIDER_AUTH = true` and `TFC_AWS_RUN_ROLE_ARN` in a project-scoped variable set
+            correct: true
+          - text: Hardcode the role ARN in each module's `provider` block
+            feedback: The role is passed through environment variables, and repeating it per workspace does not scale.
+          - text: Create a team API token and store it as `AWS_ACCESS_KEY_ID`
+            feedback: Team tokens authenticate to HCP Terraform, not to AWS.
+      explanation: |
+        Dynamic AWS credentials are enabled by the `TFC_AWS_PROVIDER_AUTH` and
+        `TFC_AWS_RUN_ROLE_ARN` environment variables. A project-scoped variable set applies
+        them to all current and future workspaces in the project.
+    - kind: choice
+      prompt: |
+        A team should be able to queue plans in a workspace but not apply them.
+        Which fixed workspace permission set should it get?
+      data:
+        multiple: false
+        options:
+          - text: Read
+            feedback: Read can view runs, variables and state but cannot queue plans.
+          - text: Write
+            feedback: Write also allows applying runs.
+          - text: Admin
+            feedback: Admin has full control over the workspace, including applies and settings.
+          - text: Plan
+            correct: true
+      explanation: |
+        The fixed sets are Read, Plan, Write and Admin. Plan lets the team queue plans
+        whose changes must be approved by someone else before they are applied.
+    - kind: choice
+      prompt: |
+        A platform team wants to find all workspaces that use a deprecated module version
+        and ask the owning teams to upgrade. Which HCP Terraform features fit this task?
+        Select two.
+      data:
+        multiple: true
+        options:
+          - text: Explorer, to query workspaces and module versions across the organization
+            correct: true
+          - text: Change requests, to record the action item on each affected workspace
+            correct: true
+          - text: Run triggers, to queue runs in all affected workspaces
+            feedback: Run triggers chain runs between workspaces; they do not find or notify about module usage.
+          - text: Health assessments, to detect outdated modules
+            feedback: Health assessments detect drift and check failed assertions, not outdated modules.
+      explanation: |
+        Explorer surfaces data about workspaces, modules, providers and Terraform
+        versions. Administrators can create change requests directly from explorer
+        queries; they act as a backlog of action items on each workspace.

@@ -1,0 +1,174 @@
+version: 1
+type: quiz
+theory_blocks:
+  - kind: markdown
+    data:
+      content: |
+        # Refer to resource attributes and create cross-resource references
+        This quiz covers the expression syntax for named values (`var.`, `local.`, `module.`, `data.`, resource
+        addresses, `path.*`, `terraform.workspace`, `count.index`, `each.*`, `self`) and resource addressing used
+        on the CLI, including instances created with `count` and `for_each` and resources inside modules.
+
+        Docs:
+        - [References to values](https://developer.hashicorp.com/terraform/language/expressions/references)
+        - [Resource addressing](https://developer.hashicorp.com/terraform/cli/state/resource-addressing)
+data:
+  questions:
+    - kind: choice
+      prompt: |
+        Which expression gives the private IP of the instance in another resource?
+
+        ```hcl
+        resource "aws_instance" "app" {
+          ami           = "ami-0abc123"
+          instance_type = "t3.micro"
+        }
+        ```
+      data:
+        multiple: false
+        options:
+          - text: "`resource.aws_instance.app.private_ip`"
+            feedback: Managed resources are referenced without a `resource.` prefix.
+          - text: "`aws_instance.app.private_ip`"
+            correct: true
+          - text: "`${aws_instance[\"app\"].private_ip}`"
+            feedback: The name is not a map key.
+          - text: "`app.private_ip`"
+            feedback: The reference needs the resource type too.
+      explanation: Managed resource attributes are referenced as `<TYPE>.<NAME>.<ATTRIBUTE>`.
+    - kind: choice
+      prompt: |
+        A resource uses `count = 3`. What is the address of the second instance?
+      data:
+        multiple: false
+        options:
+          - text: "`aws_instance.web[2]`"
+            feedback: Indexes start at 0, so `[2]` is the third instance.
+          - text: "`aws_instance.web.1`"
+            feedback: Instances are addressed with square brackets.
+          - text: "`aws_instance.web[1]`"
+            correct: true
+          - text: "`aws_instance.web[\"1\"]`"
+            feedback: String keys are used for `for_each`, not `count`.
+      explanation: "`count` instances are addressed by a zero-based number index: `aws_instance.web[1]`."
+    - kind: choice
+      prompt: |
+        Given this configuration, which expression returns a list of all bucket ARNs?
+
+        ```hcl
+        resource "aws_s3_bucket" "logs" {
+          for_each = toset(["a", "b"])
+          bucket   = "logs-${each.key}"
+        }
+        ```
+      data:
+        multiple: false
+        options:
+          - text: "`aws_s3_bucket.logs[*].arn`"
+            feedback: A resource with `for_each` is a map of objects; splat over a map doesn't work like this.
+          - text: "`[for b in aws_s3_bucket.logs : b.arn]`"
+            correct: true
+          - text: "`aws_s3_bucket.logs.arn`"
+            feedback: With `for_each` you must pick an instance or iterate over the map.
+          - text: "`aws_s3_bucket.logs[0].arn`"
+            feedback: "`for_each` instances are keyed by strings (`[\"a\"]`), not numbers."
+      explanation: |
+        A resource with `for_each` is a map of objects keyed by the `for_each` keys. Use a `for` expression
+        (or `values(aws_s3_bucket.logs)[*].arn`) to collect an attribute from all instances.
+    - kind: choice
+      prompt: |
+        How do you reference output `vpc_id` of a child module declared as `module "network"`?
+      data:
+        multiple: false
+        options:
+          - text: "`module.network.vpc_id`"
+            correct: true
+          - text: "`module.network.output.vpc_id`"
+            feedback: There is no `output` segment in the reference.
+          - text: "`output.network.vpc_id`"
+            feedback: Outputs of child modules are accessed via `module.<NAME>`.
+          - text: "`module.network.aws_vpc.main.id`"
+            feedback: A parent module can't reference resources inside a child module, only its outputs.
+      explanation: |
+        Module outputs are referenced as `module.<MODULE_NAME>.<OUTPUT_NAME>`. Resources inside a child module
+        are not directly accessible from the parent.
+    - kind: choice
+      prompt: |
+        Which is the correct CLI address of the instance with key `"eu"` of resource `aws_instance.web` in
+        module `app`, for example in `terraform state show`?
+      data:
+        multiple: false
+        options:
+          - text: "`aws_instance.web.app[\"eu\"]`"
+            feedback: The module path comes first.
+          - text: "`module.app.aws_instance.web[\"eu\"]`"
+            correct: true
+          - text: "`app.module.aws_instance.web.eu`"
+            feedback: Module path is `module.<NAME>` and keys go in brackets.
+          - text: "`module.app.aws_instance.web[eu]`"
+            feedback: String keys must be quoted.
+      explanation: |
+        A resource address is `[module path][resource spec]`, e.g. `module.app.aws_instance.web["eu"]`. In a
+        shell you usually need to quote it: `'module.app.aws_instance.web["eu"]'`.
+    - kind: choice
+      prompt: Which named values are valid in Terraform expressions? Select all that apply.
+      data:
+        multiple: true
+        options:
+          - text: "`path.module`"
+            correct: true
+          - text: "`terraform.workspace`"
+            correct: true
+          - text: "`local.<NAME>`"
+            correct: true
+          - text: "`locals.<NAME>`"
+            feedback: Locals are declared in `locals` blocks but referenced with `local.`.
+          - text: "`env.HOME`"
+            feedback: Terraform has no `env.` named value; environment variables reach configuration only as `TF_VAR_` input variables.
+      explanation: |
+        Valid named values include `var.`, `local.`, `module.`, `data.`, resource references, `path.module`,
+        `path.root`, `path.cwd`, `terraform.workspace`, `count.index`, `each.key`/`each.value` and `self`.
+    - kind: choice
+      prompt: |
+        True or false: referencing `aws_security_group.web.id` inside `aws_instance.app` makes Terraform create
+        the security group before the instance.
+      data:
+        multiple: false
+        options:
+          - text: "True"
+            correct: true
+          - text: "False"
+            feedback: References create implicit dependencies that order operations.
+      explanation: |
+        Cross-resource references create implicit dependencies, so Terraform builds the referenced object first.
+    - kind: choice
+      prompt: |
+        Where can the `self` object be used? Select two.
+      data:
+        multiple: true
+        options:
+          - text: In `provisioner` and `connection` blocks.
+            correct: true
+          - text: In a resource's `postcondition` block.
+            correct: true
+          - text: In any argument of a resource to refer to its own other arguments.
+            feedback: Normal arguments can't use `self`; that would be a self-reference cycle.
+          - text: In `variable` validation conditions.
+            feedback: Validation conditions refer to `var.<name>`, not `self`.
+      explanation: |
+        `self` refers to the current resource's object and is available only in provisioner and connection
+        blocks and in `postcondition` blocks.
+    - kind: choice
+      prompt: |
+        Inside a resource with `for_each = { web = "t3.micro", db = "t3.large" }`, what does `each.value` return
+        for the `db` instance?
+      data:
+        multiple: false
+        options:
+          - text: "`\"db\"`"
+            feedback: That is `each.key`.
+          - text: "`1`"
+            feedback: "`for_each` instances have no numeric index."
+          - text: "`\"t3.large\"`"
+            correct: true
+      explanation: "`each.key` is the map key (`db`) and `each.value` is the corresponding value (`t3.large`)."
